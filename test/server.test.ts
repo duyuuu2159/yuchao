@@ -1,14 +1,17 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, cpSync, mkdtempSync } from 'node:fs';
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp, isAllowedHost } from '../src/server/main.ts';
 import { Store } from '../src/core/store.ts';
+import { ConfigManager } from '../src/core/configs.ts';
 
-const server = createServer(createApp(new Store(':memory:')));
+// 测试用的空目录，不读取本机真实的 ~/.claude 和 ~/.codex
+const EMPTY = mkdtempSync(join(tmpdir(), 'yuchao-srv-empty-'));
+const server = createServer(createApp(new Store(':memory:'), { claudeDir: join(EMPTY, '.claude'), codexDir: join(EMPTY, '.codex') }));
 await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
 const port = (server.address() as AddressInfo).port;
 after(() => server.close());
@@ -58,7 +61,7 @@ test('会话、标题和搜索结果默认打码，raw=1 才返回原文', async
   const store = new Store(':memory:');
   await store.index({ claudeDir: join(root, 'claude'), codexDir: join(root, 'codex') });
 
-  const srv = createServer(createApp(store));
+  const srv = createServer(createApp(store, { claudeDir: join(root, 'claude'), codexDir: join(root, 'codex') }));
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
   const get = async (p: string) => (await fetch(base + p)).text();
@@ -78,4 +81,40 @@ test('画像接口只读：返回统计、记忆和最新画像，不提供生�
   assert.deepEqual(r.body.latest, { all: null, claude: null, codex: null });
   assert.equal((await call('POST', '/api/profile/build', { 'x-yuchao': '1' })).status, 404);
   assert.equal((await call('GET', '/api/profile/diff?scope=claude')).body, null);
+});
+
+test('配置接口只读，差异内容打码，损坏的版本不逐行对比', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'yuchao-srv-cfg-'));
+  const dirs = { claudeDir: join(root, '.claude'), codexDir: join(root, '.codex') };
+  mkdirSync(dirs.codexDir, { recursive: true });
+  const toml = join(dirs.codexDir, 'config.toml');
+  const TOKEN = 'Tq8vLm2Xz9Ab';
+  writeFileSync(join(dirs.codexDir, 'config.toml.corrupted'), '\0'.repeat(20));
+  writeFileSync(join(dirs.codexDir, 'config.toml.bak_1'), 'model = "a"\n');
+  writeFileSync(toml, `model = "b"\nexperimental_bearer_token = "${TOKEN}"\n`);
+  const store = new Store(':memory:');
+  const cfg = new ConfigManager(store, dirs);
+  cfg.snapshot();
+  cfg.importBackups();
+  const srv = createServer(createApp(store, dirs));
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+  const get = async (p: string) => (await fetch(base + p)).json();
+  try {
+    const status = await get('/api/configs');
+    assert.equal(status.find((f: any) => f.path === toml).versions, 3);
+    const vs = await get(`/api/configs/versions?path=${encodeURIComponent(toml)}`);
+    const backup = vs.find((v: any) => v.label === 'config.toml.bak_1');
+    const broken = vs.find((v: any) => v.error);
+    const d = await get(`/api/configs/diff?path=${encodeURIComponent(toml)}&from=${backup.id}&to=current`);
+    assert.equal(d.diff.added, 2);
+    assert.ok(!JSON.stringify(d).includes(TOKEN), '差异里的 token 应打码');
+    const b = await get(`/api/configs/diff?path=${encodeURIComponent(toml)}&from=${broken.id}`);
+    assert.match(b.broken, /空字节/);
+    assert.equal(b.diff, null);
+    assert.equal((await fetch(base + '/api/configs/versions?path=' + encodeURIComponent(join(root, 'x.toml')))).status, 404);
+    assert.equal((await fetch(base + '/api/configs/restore', { method: 'POST', headers: { 'x-yuchao': '1' } })).status, 404);
+  } finally {
+    srv.close();
+  }
 });

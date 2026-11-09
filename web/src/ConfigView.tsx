@@ -1,0 +1,133 @@
+import { useEffect, useState } from 'react';
+import { configApi, type ConfigDiff, type ConfigStatus, type ConfigVersion } from './api.ts';
+import { when } from './format.ts';
+
+const SOURCE_LABEL: Record<ConfigVersion['source'], string> = { snapshot: '快照', backup: '旧备份', 'before-restore': '回滚前', restore: '回滚' };
+
+export function ConfigView() {
+  const [files, setFiles] = useState<ConfigStatus[] | null>(null);
+  const [path, setPath] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    configApi.status().then((fs) => {
+      setFiles(fs);
+      setPath((p) => p ?? fs.find((f) => f.versions > 0)?.path ?? null);
+    }, (e) => setError(e.message));
+  }, []);
+
+  if (error) return <div className="placeholder err">{error}</div>;
+  if (!files) return <div className="placeholder">加载中…</div>;
+
+  return (
+    <div className="configs">
+      <h2>配置管家</h2>
+      <p className="hint">
+        记录各 agent 配置文件的每个版本，旁边散落的旧备份也整理进同一条时间线。内容里的 key、密码已打码。回滚会改写配置文件，只能在命令行里执行。
+      </p>
+      <div className="config-files">
+        {files.map((f) => (
+          <button key={f.path} className={'config-file' + (f.path === path ? ' active' : '')} disabled={!f.versions} onClick={() => setPath(f.path)}>
+            <b>{f.name}</b>
+            <span className={'state ' + (!f.exists ? 'muted' : f.error ? 'bad' : f.changed ? 'warn' : 'ok')}>
+              {!f.exists ? (f.versions ? '已删除' : '不存在') : f.error ? '当前文件损坏' : f.changed ? '有未记录的修改' : '正常'}
+            </span>
+            <span className="meta">{f.versions} 个版本</span>
+          </button>
+        ))}
+      </div>
+      {path ? <Timeline key={path} path={path} /> : <div className="empty">还没有记录任何版本。运行 node src/cli/main.ts config import 导入旧备份。</div>}
+    </div>
+  );
+}
+
+function Timeline({ path }: { path: string }) {
+  const [versions, setVersions] = useState<ConfigVersion[] | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [against, setAgainst] = useState<'previous' | 'current'>('previous');
+  const [diff, setDiff] = useState<ConfigDiff | null>(null);
+
+  useEffect(() => {
+    configApi.versions(path).then((vs) => {
+      setVersions(vs);
+      setSelected(vs[0]?.id ?? null);
+    });
+  }, [path]);
+
+  useEffect(() => {
+    if (!versions || selected === null) return;
+    const i = versions.findIndex((v) => v.id === selected);
+    // 时间线从新到旧排列，「上一个版本」是列表里的下一项
+    const prev = versions[i + 1];
+    setDiff(null);
+    if (against === 'current') configApi.diff(path, String(selected), 'current').then(setDiff);
+    else if (prev) configApi.diff(path, String(prev.id), String(selected)).then(setDiff);
+  }, [path, versions, selected, against]);
+
+  if (!versions) return <div className="placeholder">加载中…</div>;
+  const isOldest = versions.at(-1)?.id === selected;
+
+  return (
+    <div className="timeline-layout">
+      <ol className="timeline">
+        {versions.map((v) => (
+          <li key={v.id}>
+            <button className={'version' + (v.id === selected ? ' active' : '') + (v.error ? ' broken' : '')} onClick={() => setSelected(v.id)}>
+              <span className="vid">#{v.id}</span>
+              <span className="vtime">{when(v.capturedAt)}</span>
+              <span className={'state ' + (v.error ? 'bad' : 'ok')}>{v.error ? '损坏' : '正常'}</span>
+              <span className="vlabel" title={v.label}>
+                {SOURCE_LABEL[v.source]} · {v.label}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <section className="version-detail">
+        {selected !== null && (
+          <>
+            <div className="seg" role="group" aria-label="对比对象">
+              <button className={against === 'previous' ? 'on' : ''} onClick={() => setAgainst('previous')}>
+                相比上一个版本
+              </button>
+              <button className={against === 'current' ? 'on' : ''} onClick={() => setAgainst('current')}>
+                和当前文件对比
+              </button>
+            </div>
+            {versions.find((v) => v.id === selected)?.error && <p className="err">这个版本已损坏：{versions.find((v) => v.id === selected)!.error}</p>}
+            <p className="meta">
+              回滚到这个版本：<code>node src/cli/main.ts config restore {selected}</code>（先预览改动，确认后加 --yes）
+            </p>
+            {against === 'previous' && isOldest ? <div className="empty">这是最早的版本，没有可以对比的上一版。</div> : <DiffView diff={diff} />}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function DiffView({ diff }: { diff: ConfigDiff | null }) {
+  if (!diff) return <div className="placeholder">对比中…</div>;
+  if (diff.broken) return <div className="empty">{diff.broken}</div>;
+  const d = diff.diff!;
+  return (
+    <div className="diff-view">
+      <div className="meta">
+        {diff.from} → {diff.to} · <span className="add">+{d.added}</span> <span className="del">−{d.removed}</span>
+      </div>
+      {d.hunks.length === 0 && <div className="empty">内容相同。</div>}
+      {d.hunks.map((h, i) => (
+        <pre key={i} className="hunk">
+          {h.lines.map((l, j) => (
+            <div key={j} className={'dl ' + l.kind}>
+              <span className="ln">{l.oldNo ?? ''}</span>
+              <span className="ln">{l.newNo ?? ''}</span>
+              <span className="mark">{l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ' '}</span>
+              {l.text}
+            </div>
+          ))}
+        </pre>
+      ))}
+    </div>
+  );
+}

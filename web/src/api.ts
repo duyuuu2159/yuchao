@@ -163,3 +163,42 @@ export const profileApi = {
   overview: () => get<ProfileOverview>('/api/profile'),
   diff: (scope: Scope) => get<ProfileDiff | null>(`/api/profile/diff?scope=${scope}`),
 };
+
+export interface ConfigVersion {
+  id: number;
+  path: string;
+  hash: string;
+  size: number;
+  capturedAt: string;
+  source: 'snapshot' | 'backup' | 'before-restore' | 'restore';
+  label: string;
+  error: string | null;
+}
+
+export interface ConfigStatus {
+  path: string;
+  name: string;
+  format: 'json' | 'toml' | 'text';
+  exists: boolean;
+  versions: number;
+  latest: ConfigVersion | null;
+  changed: boolean;
+  error: string | null;
+}
+
+export interface ConfigDiff {
+  from: string;
+  to: string;
+  broken: string | null;
+  diff: {
+    added: number;
+    removed: number;
+    hunks: { oldStart: number; newStart: number; lines: { kind: 'same' | 'add' | 'del'; text: string; oldNo: number | null; newNo: number | null }[] }[];
+  } | null;
+}
+
+export const configApi = {
+  status: () => get<ConfigStatus[]>('/api/configs'),
+  versions: (path: string) => get<ConfigVersion[]>(`/api/configs/versions?${qs({ path })}`),
+  diff: (path: string, from: string, to: string) => get<ConfigDiff>(`/api/configs/diff?${qs({ path, from, to })}`),
+};

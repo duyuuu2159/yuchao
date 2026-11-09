@@ -2,11 +2,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
+import { ConfigManager, hasNul, redactConfig } from '../core/configs.ts';
+import { diffText } from '../core/diff.ts';
 import { readClaudeMemories } from '../core/memories.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
-import { defaultSourceDirs } from '../core/sources.ts';
+import { defaultSourceDirs, type SourceDirs } from '../core/sources.ts';
 import { Store, type SearchOptions } from '../core/store.ts';
 import type { AgentKind, Role } from '../core/types.ts';
 
@@ -41,7 +43,7 @@ export function isAllowedHost(host: string | undefined): boolean {
 
 export const WRITE_HEADER = 'x-yuchao';
 
-export function createApp(store: Store) {
+export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs()) {
   let indexing: Promise<unknown> | null = null;
 
   return async (req: IncomingMessage, res: ServerResponse) => {
@@ -86,7 +88,7 @@ export function createApp(store: Store) {
 
       if (path === '/api/index' && req.method === 'POST') {
         // 同一时间只跑一次索引，重复点击的请求等同一个结果
-        indexing ??= store.index(defaultSourceDirs()).finally(() => (indexing = null));
+        indexing ??= store.index(dirs).finally(() => (indexing = null));
         return json(res, 200, await indexing);
       }
 
@@ -105,7 +107,7 @@ export function createApp(store: Store) {
         const scopes = ['all', 'claude', 'codex'] as const;
         return json(res, 200, {
           stats: activityStats(store),
-          memories: readClaudeMemories(defaultSourceDirs().claudeDir).map(({ path: _, ...m }) => m),
+          memories: readClaudeMemories(dirs.claudeDir).map(({ path: _, ...m }) => m),
           latest: Object.fromEntries(scopes.map((sc) => [sc, latestProfile(store, sc)])),
           versions: Object.fromEntries(scopes.map((sc) => [sc, profileHistory(store, sc).length])),
         });
@@ -116,6 +118,32 @@ export function createApp(store: Store) {
         const scope = sc === 'claude' || sc === 'codex' ? sc : 'all';
         const [newer, older] = profileHistory(store, scope);
         return json(res, 200, older ? { from: older.createdAt, to: newer.createdAt, ...diffProfiles(older.profile, newer.profile) } : null);
+      }
+
+      // 配置管家：只读。回滚会改写配置文件，必须在命令行里用 yuchao config restore <版本> --yes
+      if (path.startsWith('/api/configs') && req.method === 'GET') {
+        const cfg = new ConfigManager(store, dirs);
+        if (path === '/api/configs') return json(res, 200, cfg.status());
+        const file = cfg.tracked().find((f) => f.path === url.searchParams.get('path'));
+        if (!file) return json(res, 404, { error: '没有跟踪这个配置文件' });
+        if (path === '/api/configs/versions') return json(res, 200, cfg.versions(file.path));
+        if (path === '/api/configs/diff') {
+          const load = (ref: string | null) => {
+            if (!ref || ref === 'current') return { name: '当前文件', text: cfg.currentContent(file.path) };
+            const v = cfg.version(Number(ref));
+            if (!v || v.path !== file.path) throw new Error(`没有版本 #${ref}`);
+            return { name: `#${v.id} ${v.label}`, text: cfg.rawContent(v.id) };
+          };
+          const from = load(url.searchParams.get('from'));
+          const to = load(url.searchParams.get('to'));
+          const broken = [from, to].find((x) => hasNul(x.text));
+          return json(res, 200, {
+            from: from.name,
+            to: to.name,
+            broken: broken ? `${broken.name} 含有空字节（已损坏），无法逐行对比` : null,
+            diff: broken ? null : diffText(redactConfig(from.text), redactConfig(to.text)),
+          });
+        }
       }
 
       if (path.startsWith('/api/')) return json(res, 404, { error: '没有这个接口' });

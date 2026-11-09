@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { api, type Agent, type IndexResult, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
 import { when } from './format.ts';
+import { ConfigView } from './ConfigView.tsx';
 import { ProfileView } from './ProfileView.tsx';
 import { ScanView } from './ScanView.tsx';
 
@@ -24,7 +25,7 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export function App() {
-  const [view, setView] = useState<'sessions' | 'scan' | 'profile'>('sessions');
+  const [view, setView] = useState<'sessions' | 'scan' | 'profile' | 'config'>('sessions');
   // 默认打码显示，截图和演示时不会把密码露出去
   const [raw, setRaw] = useState(false);
   const [agent, setAgent] = useState<Agent | undefined>();
@@ -94,6 +95,9 @@ export function App() {
           <button className={view === 'profile' ? 'on' : ''} onClick={() => setView('profile')}>
             画像
           </button>
+          <button className={view === 'config' ? 'on' : ''} onClick={() => setView('config')}>
+            配置
+          </button>
         </nav>
         <input
           className="search"
@@ -141,6 +145,10 @@ export function App() {
       ) : view === 'profile' ? (
         <main className="detail">
           <ProfileView key={reloadKey} onOpen={open} />
+        </main>
+      ) : view === 'config' ? (
+        <main className="detail">
+          <ConfigView key={reloadKey} />
         </main>
       ) : (
         <div className="body">
