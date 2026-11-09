@@ -8,6 +8,8 @@
 - **安全扫描**：找出会话里泄露的密码、API key、私钥，同一个秘密归为一组；报告和界面默认打码，不显示原文
 - **Agent 眼中的你**：展示 Claude、WorkBuddy 自己写下的关于你的记忆；本地统计你和 AI 的相处方式；用大模型从你写的话里整理画像，每条结论都附出处，程序会剔除模型编造的引用
 - **配置管家**：给各个 agent 的配置文件记版本，把散落的旧备份整理成一条时间线，检查哪些版本已损坏，安全回滚
+- **服务器面板**：服务状态、线上版本和发布记录、磁盘、最近的异常退出和错误日志；用一把只能运行只读脚本的专用密钥连接，鱼巢没有能力改动服务器
+- **单文件程序**：打包成一个 `yuchao.exe`，双击即用，不需要安装 Node.js
 - **认得清来源**：区分你亲手写的话、agent 的回复、工具调用和客户端自动注入的上下文；子 agent 会话挂在父会话下面；分叉会话复制的历史在搜索结果里只出现一次
 
 ## 支持的 agent
@@ -22,6 +24,12 @@
 每个 agent 是 `src/core/agents.ts` 里的一个适配器（数据目录、会话文件、解析器、配置文件）。接入新的 agent 只需要写一个解析器并注册，索引、搜索、扫描、画像和配置管家都会自动支持。
 
 ## 使用
+
+### 直接用 exe
+
+运行 `npm run build:exe` 生成 `dist/yuchao.exe`。双击它会更新索引、启动本地网页并打开浏览器；在命令行里运行则和下面的 `node src/cli/main.ts` 一样，例如 `yuchao.exe search nginx`。
+
+### 从源码运行
 
 需要 Node.js 24 或更新版本（用到了内置的 `node:sqlite`、zstd 解压和 TypeScript 类型擦除）。
 
@@ -66,9 +74,27 @@ node src/cli/main.ts serve
 | `config` | 配置文件状态；`config import` 导入旧备份，`config log <文件>` 查看历史 |
 | `config diff <文件> [旧] [新]` | 对比两个版本（已打码） |
 | `config restore <版本> --yes` | 回滚，先保存当前内容；损坏的版本需要 `--force` |
+| `server [名字]` | 服务器面板：服务、版本、磁盘、最近的异常（只读）；`--json` 输出 JSON |
+| `server add <名字> <用户名@主机>` | 添加服务器，`--url` 填公网地址用于检查 HTTPS |
+| `server setup` | 生成只读专用密钥，打印服务器上需要做的配置 |
 | `serve` | 启动本地网页界面，只监听 127.0.0.1，只接受本机 Host，写操作需要自定义请求头 |
 
 索引存放在 `~/.yuchao/index.db`，可用环境变量 `YUCHAO_DB` 修改。
+
+### 服务器面板是怎么保证只读的
+
+`server setup` 在本机生成一把鱼巢专用的 ed25519 密钥，并给出要加进服务器 `authorized_keys` 的一行：
+
+```
+restrict,command="/usr/bin/python3 /usr/local/lib/yuchao/status.py" ssh-ed25519 AAAA... yuchao-readonly
+```
+
+- `command=` 把这把密钥的登录固定为运行状态脚本（`server/yuchao-status.py`），客户端要求执行什么命令都会被替换掉
+- `restrict` 关掉端口转发、终端和代理转发
+- 状态脚本只读取信息，输出一份 JSON；日志里的密钥和访客 IP 在本机显示时打码
+- 连接时要求服务器指纹已经在 `known_hosts` 里，不会自动信任陌生主机
+
+即使这把密钥泄露，别人也只能看到服务器状态。
 
 ### 生成画像用的接口
 
@@ -107,10 +133,13 @@ src/core/      解析器、索引、搜索、安全扫描（不依赖界面）
   audit.ts     对整个索引做扫描并汇总
   memories.ts  读取 Claude 和 WorkBuddy 的记忆文件
   configs.ts   配置管家：版本、导入备份、校验、回滚
+  server.ts    服务器面板：专用密钥、ssh 连接、状态解析、问题判断
   diff.ts      逐行差异对比
   profile/     画像：证据抽取、本地统计、大模型接口、生成与引用校验
 src/cli/       命令行入口
 src/server/    本地 HTTP API 和静态文件服务
+server/        装在服务器上的只读状态脚本
+scripts/       打包成单文件 exe 的脚本
 web/           React 界面
 test/          测试；fixtures/ 里是手写的假会话，不含任何真实数据
 docs/          计划和开发日志
