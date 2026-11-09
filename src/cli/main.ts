@@ -4,6 +4,8 @@ import { defaultSourceDirs } from '../core/sources.ts';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { defaultDbPath, Store, type SearchOptions } from '../core/store.ts';
 import type { AgentKind, Role } from '../core/types.ts';
+import { runMemories, runProfile } from './profile.ts';
+import { bold, color, day, dim, fail, tag } from './style.ts';
 
 const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在一起
 
@@ -23,6 +25,17 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
       --json                       输出 JSON
   yuchao scan ignore <指纹>        把一条发现标记为误报
   yuchao scan unignore <指纹>      取消误报标记
+  yuchao memories                  查看 Claude 已经写下的关于你的记忆
+  yuchao profile stats             本地统计：活跃时间、项目、常说的话（不调用大模型）
+  yuchao profile preview           生成「将要发给大模型的内容」供检查，不发送
+  yuchao profile build --yes       调用大模型生成画像（会产生费用）
+      --scope all|claude|codex     按全部会话，或只按某个 agent 的会话生成（默认 all）
+      --model <模型>               默认 claude-opus-5-5
+      --claude-code-config         复用 ~/.claude/settings.json 里 Claude Code 的接口地址和令牌
+      --no-fallbacks               不使用服务端拒答回退（中转站不支持时使用）
+  yuchao profile show [--scope]    查看最新画像和每条结论的出处
+  yuchao profile diff [--scope]    对比最近两个版本
+  yuchao profile export [--scope]  导出成可以放进 CLAUDE.md / AGENTS.md 的 Markdown
   yuchao serve [--port 4317]       启动本地网页界面
 
 数据库位置：${defaultDbPath()}（可用环境变量 YUCHAO_DB 修改）`;
@@ -36,6 +49,11 @@ const { values, positionals } = parseArgs({
     limit: { type: 'string' },
     port: { type: 'string', default: '4317' },
     json: { type: 'boolean', default: false },
+    scope: { type: 'string', default: 'all' },
+    model: { type: 'string' },
+    'claude-code-config': { type: 'boolean', default: false },
+    'no-fallbacks': { type: 'boolean', default: false },
+    yes: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
@@ -45,19 +63,8 @@ const agent = values.agent as AgentKind | undefined;
 if (agent && agent !== 'claude' && agent !== 'codex') fail(`未知的 agent：${agent}`);
 const limit = values.limit ? Number(values.limit) : undefined;
 
-// 输出到管道或文件时不带颜色控制符
-const color = (code: string) => (s: string) => (process.stdout.isTTY ? `\x1b[${code}m${s}\x1b[0m` : s);
-const dim = color('2');
-const bold = color('1');
-const tag = (a: string) => (a === 'claude' ? color('33')('claude') : color('36')('codex '));
 const you = color('32')('你');
 const them = color('35')('agent');
-const day = (ts: string | null) => (ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '—');
-
-function fail(msg: string): never {
-  console.error(msg);
-  process.exit(1);
-}
 
 if (values.help || !cmd) {
   console.log(HELP);
@@ -148,6 +155,12 @@ ${sev} ${bold(f.ruleName)} ${f.masked}  ${dim(`指纹 ${f.fingerprint}`)}`);
       }
       break;
     }
+    case 'memories':
+      runMemories();
+      break;
+    case 'profile':
+      await runProfile(store, rest[0], values);
+      break;
     case 'serve': {
       const { serve } = await import('../server/main.ts');
       store.close();
