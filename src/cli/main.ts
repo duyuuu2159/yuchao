@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { defaultSourceDirs } from '../core/sources.ts';
+import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { defaultDbPath, Store, type SearchOptions } from '../core/store.ts';
 import type { AgentKind, Role } from '../core/types.ts';
 
@@ -17,6 +18,11 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao show <会话 id>            查看一个会话的完整对话
       --tools                      同时显示工具调用
   yuchao stats                     索引统计
+  yuchao scan                      扫描会话里泄露的密码、密钥和令牌（只显示打码后的内容）
+      --all                        包括已标记为误报的
+      --json                       输出 JSON
+  yuchao scan ignore <指纹>        把一条发现标记为误报
+  yuchao scan unignore <指纹>      取消误报标记
   yuchao serve [--port 4317]       启动本地网页界面
 
 数据库位置：${defaultDbPath()}（可用环境变量 YUCHAO_DB 修改）`;
@@ -29,6 +35,7 @@ const { values, positionals } = parseArgs({
     all: { type: 'boolean', default: false },
     limit: { type: 'string' },
     port: { type: 'string', default: '4317' },
+    json: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
@@ -109,6 +116,36 @@ try {
       for (const r of st.sessions) console.log(`${tag(r.agent)} ${r.n} 个会话`);
       console.log(st.messages.map((r: any) => `${r.role} ${r.n}`).join('  '));
       console.log(dim(`时间跨度：${day(st.range.first)} → ${day(st.range.last)}`));
+      break;
+    }
+    case 'scan': {
+      const [sub, fp] = rest;
+      if (sub === 'ignore' || sub === 'unignore') {
+        if (!fp) fail('请提供指纹（yuchao scan 输出里的 16 位编号）');
+        (sub === 'ignore' ? ignoreFinding : unignoreFinding)(store, fp);
+        console.log(sub === 'ignore' ? `已标记为误报：${fp}` : `已取消误报标记：${fp}`);
+        break;
+      }
+      if (sub) fail(`未知的子命令：scan ${sub}`);
+      const r = audit(store, { includeIgnored: values.all });
+      if (values.json) {
+        console.log(JSON.stringify(r, null, 2));
+        break;
+      }
+      const high = r.findings.filter((f) => f.severity === 'high');
+      console.log(`扫描了 ${r.scannedMessages} 条消息和 ${r.scannedTitles} 个会话标题，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
+      console.log(`发现 ${r.findings.length} 个不同的秘密，其中高风险 ${high.length} 个` + (r.ignored ? `；另有 ${r.ignored} 处已标记为误报` : ''));
+      for (const f of r.findings) {
+        const sev = f.severity === 'high' ? color('31')('高风险') : color('33')('中风险');
+        console.log(`
+${sev} ${bold(f.ruleName)} ${f.masked}  ${dim(`指纹 ${f.fingerprint}`)}`);
+        console.log(dim(`  出现 ${f.count} 次，涉及 ${f.sessionCount} 个会话，${day(f.firstSeen)} → ${day(f.lastSeen)}`));
+        for (const o of f.occurrences.slice(0, 3)) {
+          console.log(`  ${dim(o.where === 'title' ? '会话标题' : o.where)} ${o.context}`);
+          console.log(dim(`    ${o.title ?? ''}  yuchao show ${o.sessionId}`));
+        }
+        if (f.occurrences.length > 3) console.log(dim(`  …还有 ${f.count - 3} 处`));
+      }
       break;
     }
     case 'serve': {

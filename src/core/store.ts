@@ -2,6 +2,7 @@ import { mkdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { redact } from './scan.ts';
 import { parseClaudeFile } from './parsers/claude.ts';
 import { loadCodexTitles, parseCodexFile } from './parsers/codex.ts';
 import { discover, type SourceDirs } from './sources.ts';
@@ -56,6 +57,12 @@ END;
 CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
   INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
 END;
+-- 用户标记为误报的扫描结果，只存指纹，不存原文；重建索引时保留
+CREATE TABLE IF NOT EXISTS scan_ignores (
+  fingerprint TEXT PRIMARY KEY,
+  note        TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL
+);
 `;
 
 export interface IndexResult {
@@ -73,6 +80,8 @@ export interface SearchOptions {
   roles?: Role[];
   sessionId?: string;
   limit?: number;
+  /** 摘要和标题里的密码、密钥打码显示（截取摘要之前先打码，避免秘密被截成两半漏掉） */
+  redact?: boolean;
 }
 
 export interface SearchHit {
@@ -282,8 +291,8 @@ export class Store {
         ts: r.ts,
         role: r.role,
         toolName: r.tool_name,
-        snippet: makeSnippet(r.text, terms),
-        title: r.title,
+        snippet: makeSnippet(opts.redact ? redact(r.text) : r.text, terms),
+        title: opts.redact && r.title ? redact(r.title) : r.title,
         agent: r.agent,
         cwd: r.cwd,
         alsoIn: 0,
