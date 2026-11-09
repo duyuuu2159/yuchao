@@ -1,15 +1,19 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { redact } from './scan.ts';
+import type { SourceDirs } from './sources.ts';
+import type { AgentKind } from './types.ts';
 
-// Claude Code 的记忆文件：~/.claude/projects/<项目>/memory/*.md
-// 这是 agent 自己写下的「我对这个用户的了解」，是字面意义上的「agent 眼中的你」。
+// agent 自己写下的「我对这个用户的了解」，是字面意义上的「agent 眼中的你」：
+// - Claude Code：~/.claude/projects/<项目>/memory/*.md，一条记忆一个文件，带 YAML 头
+// - WorkBuddy：~/.workbuddy/USER.md（它眼中的用户）、MEMORY.md（长期记忆）、memory/<用户id>_memory.md（用户画像），
+//   每个文件是一整篇笔记
 
 export type MemoryType = 'user' | 'feedback' | 'project' | 'reference' | 'other';
 
 export interface AgentMemory {
-  agent: 'claude';
-  /** 记忆所在的项目目录名，例如 G--claude-- */
+  agent: AgentKind;
+  /** 记忆所在的项目目录名，例如 G--claude--；全局记忆为空串 */
   project: string;
   name: string;
   description: string;
@@ -76,4 +80,51 @@ export function readClaudeMemories(claudeDir: string): AgentMemory[] {
     }
   }
   return out.sort((a, b) => (b.modified ?? '').localeCompare(a.modified ?? ''));
+}
+
+const WORKBUDDY_NOTES: { file: string; type: MemoryType; description: string }[] = [
+  { file: 'USER.md', type: 'user', description: 'WorkBuddy 记录的用户资料' },
+  { file: 'MEMORY.md', type: 'other', description: 'WorkBuddy 的长期记忆' },
+];
+
+export function readWorkBuddyMemories(dir: string): AgentMemory[] {
+  const notes = WORKBUDDY_NOTES.map((n) => ({ ...n, path: join(dir, n.file) }));
+  try {
+    for (const f of readdirSync(join(dir, 'memory'))) {
+      if (f.endsWith('_memory.md')) notes.push({ file: f, type: 'user', description: 'WorkBuddy 整理的用户画像', path: join(dir, 'memory', f) });
+    }
+  } catch {
+    // 没有 memory 目录
+  }
+  const out: AgentMemory[] = [];
+  for (const n of notes) {
+    let text: string;
+    let mtime: Date;
+    try {
+      text = readFileSync(n.path, 'utf8');
+      mtime = statSync(n.path).mtime;
+    } catch {
+      continue;
+    }
+    const { body } = parseFrontmatter(text);
+    if (!body.trim()) continue;
+    out.push({
+      agent: 'workbuddy',
+      project: '',
+      name: n.file,
+      description: n.description,
+      type: n.type,
+      body: redact(body),
+      originSessionId: null,
+      modified: mtime.toISOString(),
+      path: n.path,
+    });
+  }
+  return out;
+}
+
+/** 所有 agent 的记忆，按修改时间从新到旧 */
+export function readMemories(dirs: SourceDirs): AgentMemory[] {
+  const all = [...(dirs.claude ? readClaudeMemories(dirs.claude) : []), ...(dirs.workbuddy ? readWorkBuddyMemories(dirs.workbuddy) : [])];
+  return all.sort((a, b) => (b.modified ?? '').localeCompare(a.modified ?? ''));
 }

@@ -3,13 +3,12 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { redact } from './scan.ts';
-import { parseClaudeFile } from './parsers/claude.ts';
-import { loadCodexTitles, parseCodexFile } from './parsers/codex.ts';
+import { AGENTS, adapter } from './agents.ts';
 import { discover, type SourceDirs } from './sources.ts';
 import type { AgentKind, Role, Session } from './types.ts';
 
 /** 解析器或表结构有变化时加 1，已有的索引会在下次打开时清空重建 */
-export const PARSER_VERSION = 2;
+export const PARSER_VERSION = 4;
 
 export function defaultDbPath(): string {
   return process.env.YUCHAO_DB ?? join(homedir(), '.yuchao', 'index.db');
@@ -140,7 +139,12 @@ export class Store {
   async index(dirs: SourceDirs, onProgress?: (done: number, total: number) => void): Promise<IndexResult> {
     const t0 = performance.now();
     const files = discover(dirs);
-    const titles = await loadCodexTitles(join(dirs.codexDir, 'session_index.jsonl'));
+    // 标题存在会话文件之外的 agent，先把标题表读出来
+    const titles = new Map<string, Map<string, string>>();
+    for (const a of AGENTS) {
+      const dir = dirs[a.kind];
+      if (dir && a.titles) titles.set(a.kind, await a.titles(dir));
+    }
     const known = new Map<string, { mtime_ms: number; size: number }>();
     for (const r of this.db.prepare('SELECT path, mtime_ms, size FROM files').all() as any[]) known.set(r.path, r);
 
@@ -169,7 +173,7 @@ export class Store {
         result.skipped++;
       } else {
         try {
-          const session = f.agent === 'claude' ? await parseClaudeFile(f.path) : await parseCodexFile(f.path, titles);
+          const session = await adapter(f.agent).parse(f.path, titles.get(f.agent) ?? new Map());
           this.transaction(() => {
             this.removeFile(f.path);
             this.writeSession(session);
@@ -185,10 +189,10 @@ export class Store {
       onProgress?.(done, files.length);
     }
 
-    // Codex 改名只写 session_index，不动会话文件，所以每次都同步一遍标题
-    const rename = this.db.prepare("UPDATE sessions SET title = ? WHERE id = ? AND agent = 'codex'");
+    // 例如 Codex 改名只写 session_index，不动会话文件，所以每次都同步一遍标题
+    const rename = this.db.prepare('UPDATE sessions SET title = ? WHERE id = ? AND agent = ?');
     this.transaction(() => {
-      for (const [id, title] of titles) rename.run(title, `codex:${id}`);
+      for (const [agent, map] of titles) for (const [id, title] of map) rename.run(title, `${agent}:${id}`, agent);
     });
 
     result.ms = Math.round(performance.now() - t0);

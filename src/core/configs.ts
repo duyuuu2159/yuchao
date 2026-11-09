@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileS
 import { homedir } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
+import { AGENTS } from './agents.ts';
 import { redact } from './scan.ts';
 import type { SourceDirs } from './sources.ts';
 import type { Store } from './store.ts';
@@ -105,7 +106,7 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 /** 默认跟踪的配置文件 */
 export function defaultTracked(dirs: SourceDirs): string[] {
-  return [join(dirs.claudeDir, 'settings.json'), join(dirs.claudeDir, 'CLAUDE.md'), join(dirs.codexDir, 'config.toml'), join(dirs.codexDir, 'AGENTS.md')];
+  return AGENTS.flatMap((a) => (dirs[a.kind] ? a.configFiles(dirs[a.kind]!) : []));
 }
 
 /** 和配置文件放在一起的手工备份，例如 config.toml.bak_20260722、settings.json.bak-before-proxy */

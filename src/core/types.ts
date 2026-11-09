@@ -1,6 +1,7 @@
 // 所有 agent 的会话都被转换成这里的统一模型，后面的索引、搜索、界面只认这一种格式。
 
-export type AgentKind = 'claude' | 'codex';
+/** 新增 agent 时在这里加一个名字，再到 agents.ts 注册适配器 */
+export type AgentKind = 'claude' | 'codex' | 'workbuddy' | 'dsh';
 
 /**
  * user       用户亲手输入的内容

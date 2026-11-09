@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import { AGENT_KINDS, isAgentKind } from '../core/agents.ts';
 import { defaultSourceDirs } from '../core/sources.ts';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { defaultDbPath, Store, type SearchOptions } from '../core/store.ts';
@@ -14,11 +15,11 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
 用法：
   yuchao index                     扫描并增量索引 Claude Code / Codex 的会话
   yuchao search <关键词...>        搜索对话（多个词需同时出现）
-      --agent claude|codex         只搜某个 agent
+      --agent <名字>               只搜某个 agent（claude、codex、workbuddy、dsh）
       --tools                      同时搜索工具调用和工具输出
       --limit <n>                  最多显示多少条（默认 20）
   yuchao sessions                  按最近活动列出会话
-      --agent claude|codex  --limit <n>  --all（包含子 agent）
+      --agent <名字>  --limit <n>  --all（包含子 agent）
   yuchao show <会话 id>            查看一个会话的完整对话
       --tools                      同时显示工具调用
   yuchao stats                     索引统计
@@ -32,7 +33,7 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao profile preview           生成「将要发给大模型的内容」供检查，不发送
   yuchao profile models            列出接口上可用的 Claude 模型（支持 --claude-code-config）
   yuchao profile build --yes       调用大模型生成画像（会产生费用）
-      --scope all|claude|codex     按全部会话，或只按某个 agent 的会话生成（默认 all）
+      --scope all|<agent>          按全部会话，或只按某个 agent 的会话生成（默认 all）
       --model <模型>|auto          默认 claude-opus-5-5；auto 从接口的模型列表里自动挑选
       --base-url <地址> --ask-key  使用指定的接口，并在终端里询问 key（不显示、不保存）
       --key-file <文件>            从文件读取 YUCHAO_BASE_URL、YUCHAO_API_KEY（可选 YUCHAO_PROVIDER）
@@ -78,7 +79,7 @@ const { values, positionals } = parseArgs({
 
 const [cmd, ...rest] = positionals;
 const agent = values.agent as AgentKind | undefined;
-if (agent && agent !== 'claude' && agent !== 'codex') fail(`未知的 agent：${agent}`);
+if (agent && !isAgentKind(agent)) fail(`未知的 agent：${agent}（可选 ${AGENT_KINDS.join('、')}）`);
 const limit = values.limit ? Number(values.limit) : undefined;
 
 const you = color('32')('你');

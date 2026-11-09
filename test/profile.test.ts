@@ -29,7 +29,7 @@ async function setup(beforeIndex?: (root: string) => void) {
   appendFileSync(s1, JSON.stringify({ type: 'user', message: { role: 'user', content: `服务器 203.0.113.7 root 密码 ${PW}` }, timestamp: '2026-11-03T00:00:00.000Z' }) + '\n');
   beforeIndex?.(root);
   const store = new Store(':memory:');
-  await store.index({ claudeDir: join(root, 'claude'), codexDir: join(root, 'codex') });
+  await store.index({ claude: join(root, 'claude'), codex: join(root, 'codex') });
   return { store, root };
 }
 
@@ -128,7 +128,7 @@ test('会话太长时保留首尾，中间明确标出省略了多少条', async
 test('本地统计', async () => {
   const { store } = await setup();
   const st = activityStats(store);
-  assert.deepEqual(st.sessions, { claude: 1, codex: 1 });
+  assert.deepEqual(st.sessions, { claude: 1, codex: 1, workbuddy: 0, dsh: 0 });
   assert.equal(st.userMessages, 3);
   assert.equal(st.byHour.reduce((a, b) => a + b, 0), 3);
   assert.deepEqual(st.topProjects.map((p) => p.name).sort(), ['demo', 'site']);

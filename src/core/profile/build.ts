@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import type { Store } from '../store.ts';
+import { agentLabel } from '../agents.ts';
 import type { AgentKind } from '../types.ts';
 import { sessionEvidence, type ActivityStats, type SessionEvidence } from './evidence.ts';
 import type { LlmClient, Usage } from './llm.ts';
@@ -160,7 +161,7 @@ export function renderNotes(items: { ev: SessionEvidence; note: SessionNote }[])
   const blocks = items.map(({ ev, note }, i) => {
     const id = `S${i + 1}`;
     ids.set(id, ev);
-    const head = `[${id}] ${ev.agent === 'claude' ? 'Claude Code' : 'Codex'}｜${ev.title}｜项目 ${ev.project ?? '未知'}｜${ev.startedAt?.slice(0, 10) ?? '日期未知'}`;
+    const head = `[${id}] ${agentLabel(ev.agent)}｜${ev.title}｜项目 ${ev.project ?? '未知'}｜${ev.startedAt?.slice(0, 10) ?? '日期未知'}`;
     const traits = note.traits.map((t) => `- （${TRAIT_LABEL[t.kind]}）${t.claim}`);
     return [head, `做的事：${note.summary}`, ...traits].join('\n');
   });

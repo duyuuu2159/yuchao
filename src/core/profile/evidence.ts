@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { IPV4, redact } from '../scan.ts';
 import type { Store } from '../store.ts';
+import { AGENT_KINDS, agentLabel } from '../agents.ts';
 import type { AgentKind } from '../types.ts';
 
 // 画像的原材料：本地统计（不经过大模型）和每个会话的证据摘要（会发给大模型）。
@@ -98,7 +99,7 @@ export function activityStats(store: Store): ActivityStats {
   }
   const sortedDays = [...days].sort();
 
-  const sessions = { claude: 0, codex: 0 } as Record<AgentKind, number>;
+  const sessions = Object.fromEntries(AGENT_KINDS.map((k) => [k, 0])) as Record<AgentKind, number>;
   const projects = new Map<string, number>();
   for (const s of store.db.prepare('SELECT id, agent, cwd FROM sessions WHERE parent_id IS NULL').all() as any[]) {
     if (!bySession.has(s.id)) continue;
@@ -180,7 +181,7 @@ export function sessionEvidence(store: Store, opts: { agent?: AgentKind } = {}):
 
     const title = sanitize(s.title ?? '（无标题）');
     const project = projectName(s.cwd);
-    const header = `${s.agent === 'claude' ? 'Claude Code' : 'Codex'}｜${title}｜项目 ${project ?? '未知'}｜${s.started_at ? localDay(s.started_at) : '日期未知'}`;
+    const header = `${agentLabel(s.agent)}｜${title}｜项目 ${project ?? '未知'}｜${s.started_at ? localDay(s.started_at) : '日期未知'}`;
     const text = header + '\n' + kept.map((l) => l.line).join('\n');
     out.push({
       sessionId: s.id,

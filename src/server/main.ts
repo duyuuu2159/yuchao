@@ -4,7 +4,8 @@ import { extname, join, normalize, sep } from 'node:path';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { ConfigManager, hasNul, redactConfig } from '../core/configs.ts';
 import { diffText } from '../core/diff.ts';
-import { readClaudeMemories } from '../core/memories.ts';
+import { readMemories } from '../core/memories.ts';
+import { AGENTS, isAgentKind } from '../core/agents.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
@@ -28,7 +29,7 @@ function json(res: ServerResponse, status: number, body: unknown) {
 }
 
 function agentParam(v: string | null): AgentKind | undefined {
-  return v === 'claude' || v === 'codex' ? v : undefined;
+  return isAgentKind(v) ? v : undefined;
 }
 
 /**
@@ -104,10 +105,10 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs()) 
 
       if (path === '/api/profile' && req.method === 'GET') {
         // 只读：生成画像会产生费用，必须在命令行里明确执行 yuchao profile build --yes
-        const scopes = ['all', 'claude', 'codex'] as const;
+        const scopes = ['all', ...AGENTS.map((a) => a.kind)] as const;
         return json(res, 200, {
           stats: activityStats(store),
-          memories: readClaudeMemories(dirs.claudeDir).map(({ path: _, ...m }) => m),
+          memories: readMemories(dirs).map(({ path: _, ...m }) => m),
           latest: Object.fromEntries(scopes.map((sc) => [sc, latestProfile(store, sc)])),
           versions: Object.fromEntries(scopes.map((sc) => [sc, profileHistory(store, sc).length])),
         });
@@ -115,7 +116,7 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs()) 
 
       if (path === '/api/profile/diff' && req.method === 'GET') {
         const sc = url.searchParams.get('scope');
-        const scope = sc === 'claude' || sc === 'codex' ? sc : 'all';
+        const scope = isAgentKind(sc) ? sc : 'all';
         const [newer, older] = profileHistory(store, scope);
         return json(res, 200, older ? { from: older.createdAt, to: newer.createdAt, ...diffProfiles(older.profile, newer.profile) } : null);
       }

@@ -17,7 +17,7 @@ function setup() {
   const codexDir = join(root, '.codex');
   mkdirSync(claudeDir);
   mkdirSync(codexDir);
-  const dirs = { claudeDir, codexDir };
+  const dirs = { claude: claudeDir, codex: codexDir };
   const store = new Store(':memory:');
   const cfg = new ConfigManager(store, dirs);
   const at = (path: string, content: string, iso: string) => {
@@ -48,7 +48,7 @@ test('找出和配置放在一起的手工备份，不把无关文件算进来',
   const { at, toml, dirs } = setup();
   at(toml, 'a = 1', '2026-11-01T00:00:00Z');
   for (const n of ['config.toml.bak_20260722_184528', 'config.toml.corrupted', 'config.toml.ccr-original', 'config.toml.bak_before_cpp140', 'config.toml.lock', 'other.toml', 'config.tomlx.bak']) {
-    writeFileSync(join(dirs.codexDir, n), 'x = 1');
+    writeFileSync(join(dirs.codex!, n), 'x = 1');
   }
   const names = findBackups(toml).map((p) => p.split(/[\\/]/).pop()).sort();
   assert.deepEqual(names, ['config.toml.bak_20260722_184528', 'config.toml.bak_before_cpp140', 'config.toml.ccr-original', 'config.toml.corrupted']);
@@ -72,15 +72,15 @@ test('导入旧备份：按修改时间排进时间线，重复的跳过，损�
   const { cfg, at, toml, dirs } = setup();
   at(toml, 'model = "now"\n', '2026-11-01T00:00:00Z');
   cfg.snapshot();
-  at(join(dirs.codexDir, 'config.toml.bak_1'), 'model = "old"\n', '2026-08-01T00:00:00Z');
-  at(join(dirs.codexDir, 'config.toml.bak_2'), 'model = "now"\n', '2026-09-01T00:00:00Z');
-  at(join(dirs.codexDir, 'config.toml.corrupted'), 'model = [\n', '2026-07-01T00:00:00Z');
+  at(join(dirs.codex!, 'config.toml.bak_1'), 'model = "old"\n', '2026-08-01T00:00:00Z');
+  at(join(dirs.codex!, 'config.toml.bak_2'), 'model = "now"\n', '2026-09-01T00:00:00Z');
+  at(join(dirs.codex!, 'config.toml.corrupted'), 'model = [\n', '2026-07-01T00:00:00Z');
   const r = cfg.importBackups();
   assert.deepEqual(r, { imported: 2, duplicates: 1, broken: 1 });
   const vs = cfg.versions(toml);
   assert.deepEqual(vs.map((v) => v.label), ['自动快照', 'config.toml.bak_1', 'config.toml.corrupted']);
   assert.ok(vs[2].error);
-  assert.equal(readFileSync(join(dirs.codexDir, 'config.toml.corrupted'), 'utf8'), 'model = [\n');
+  assert.equal(readFileSync(join(dirs.codex!, 'config.toml.corrupted'), 'utf8'), 'model = [\n');
   assert.deepEqual(cfg.importBackups(), { imported: 0, duplicates: 3, broken: 0 });
 });
 
@@ -104,7 +104,7 @@ test('回滚：先记录当前内容，写入目标版本，回滚本身也能�
 test('回滚到损坏的版本会被拒绝，除非明确 force', () => {
   const { cfg, at, toml, dirs } = setup();
   at(toml, 'model = "ok"\n', '2026-10-01T00:00:00Z');
-  at(join(dirs.codexDir, 'config.toml.corrupted'), 'model = [\n', '2026-07-01T00:00:00Z');
+  at(join(dirs.codex!, 'config.toml.corrupted'), 'model = [\n', '2026-07-01T00:00:00Z');
   cfg.snapshot();
   cfg.importBackups();
   const broken = cfg.versions(toml).find((v) => v.error)!;

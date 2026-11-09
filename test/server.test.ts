@@ -11,7 +11,7 @@ import { ConfigManager } from '../src/core/configs.ts';
 
 // 测试用的空目录，不读取本机真实的 ~/.claude 和 ~/.codex
 const EMPTY = mkdtempSync(join(tmpdir(), 'yuchao-srv-empty-'));
-const server = createServer(createApp(new Store(':memory:'), { claudeDir: join(EMPTY, '.claude'), codexDir: join(EMPTY, '.codex') }));
+const server = createServer(createApp(new Store(':memory:'), { claude: join(EMPTY, '.claude'), codex: join(EMPTY, '.codex') }));
 await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
 const port = (server.address() as AddressInfo).port;
 after(() => server.close());
@@ -59,9 +59,9 @@ test('会话、标题和搜索结果默认打码，raw=1 才返回原文', async
   const PW = 'Tq8vLm2Xz9';
   appendFileSync(join(root, 'codex/session_index.jsonl'), JSON.stringify({ id: 'c1', thread_name: `服务器 203.0.113.7 root 密码 ${PW}` }) + '\n');
   const store = new Store(':memory:');
-  await store.index({ claudeDir: join(root, 'claude'), codexDir: join(root, 'codex') });
+  await store.index({ claude: join(root, 'claude'), codex: join(root, 'codex') });
 
-  const srv = createServer(createApp(store, { claudeDir: join(root, 'claude'), codexDir: join(root, 'codex') }));
+  const srv = createServer(createApp(store, { claude: join(root, 'claude'), codex: join(root, 'codex') }));
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
   const get = async (p: string) => (await fetch(base + p)).text();
@@ -78,19 +78,19 @@ test('画像接口只读：返回统计、记忆和最新画像，不提供生�
   assert.equal(r.status, 200);
   assert.ok(Array.isArray(r.body.stats.byHour));
   assert.ok(Array.isArray(r.body.memories));
-  assert.deepEqual(r.body.latest, { all: null, claude: null, codex: null });
+  assert.deepEqual(r.body.latest, { all: null, claude: null, codex: null, workbuddy: null, dsh: null });
   assert.equal((await call('POST', '/api/profile/build', { 'x-yuchao': '1' })).status, 404);
   assert.equal((await call('GET', '/api/profile/diff?scope=claude')).body, null);
 });
 
 test('配置接口只读，差异内容打码，损坏的版本不逐行对比', async () => {
   const root = mkdtempSync(join(tmpdir(), 'yuchao-srv-cfg-'));
-  const dirs = { claudeDir: join(root, '.claude'), codexDir: join(root, '.codex') };
-  mkdirSync(dirs.codexDir, { recursive: true });
-  const toml = join(dirs.codexDir, 'config.toml');
+  const dirs = { claude: join(root, '.claude'), codex: join(root, '.codex') };
+  mkdirSync(dirs.codex!, { recursive: true });
+  const toml = join(dirs.codex!, 'config.toml');
   const TOKEN = 'Tq8vLm2Xz9Ab';
-  writeFileSync(join(dirs.codexDir, 'config.toml.corrupted'), '\0'.repeat(20));
-  writeFileSync(join(dirs.codexDir, 'config.toml.bak_1'), 'model = "a"\n');
+  writeFileSync(join(dirs.codex!, 'config.toml.corrupted'), '\0'.repeat(20));
+  writeFileSync(join(dirs.codex!, 'config.toml.bak_1'), 'model = "a"\n');
   writeFileSync(toml, `model = "b"\nexperimental_bearer_token = "${TOKEN}"\n`);
   const store = new Store(':memory:');
   const cfg = new ConfigManager(store, dirs);

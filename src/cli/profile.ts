@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { readClaudeMemories } from '../core/memories.ts';
+import { AGENT_KINDS, agentLabel, isAgentKind } from '../core/agents.ts';
+import { readMemories } from '../core/memories.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { buildProfile, ProfileBuildError, diffProfiles, exportMarkdown, latestProfile, previewPayload, profileHistory, type Scope } from '../core/profile/build.ts';
 import { AnthropicLlm, claudeCodeSettingsPath, DEFAULT_MODEL, pickModel, readClaudeCodeConnection, type AnthropicOptions } from '../core/profile/llm.ts';
@@ -34,18 +35,19 @@ function makeLlm(conn: AnthropicOptions, model: string, provider: string): LlmCl
 const MEMORY_TYPE: Record<string, string> = { user: '关于你', feedback: '做事要求', project: '项目', reference: '参考', other: '其他' };
 
 export function runMemories() {
-  const ms = readClaudeMemories(defaultSourceDirs().claudeDir);
-  if (!ms.length) return console.log('没有找到 Claude 的记忆文件。');
-  console.log(`Claude 在 ${new Set(ms.map((m) => m.project)).size} 个项目里写下了 ${ms.length} 条记忆：`);
+  const ms = readMemories(defaultSourceDirs());
+  if (!ms.length) return console.log('没有找到 agent 的记忆文件。');
+  const counts = AGENT_KINDS.map((k) => [k, ms.filter((m) => m.agent === k).length] as const).filter(([, n]) => n);
+  console.log(`共 ${ms.length} 条记忆：${counts.map(([k, n]) => `${agentLabel(k)} ${n} 条`).join('，')}`);
   for (const m of ms) {
-    console.log(`\n${bold(m.name)} ${dim(`[${MEMORY_TYPE[m.type]}] ${m.project} · ${day(m.modified)}`)}`);
+    console.log(`\n${tag(m.agent)} ${bold(m.name)} ${dim(`[${MEMORY_TYPE[m.type]}] ${m.project ? m.project + ' · ' : ''}${day(m.modified)}`)}`);
     if (m.description) console.log(`  ${m.description}`);
   }
 }
 
 function parseScope(s: string | undefined): Scope {
-  if (s === undefined || s === 'all' || s === 'claude' || s === 'codex') return s ?? 'all';
-  fail(`未知的范围：${s}（可选 all、claude、codex）`);
+  if (s === undefined || s === 'all' || isAgentKind(s)) return s ?? 'all';
+  fail(`未知的范围：${s}（可选 all、${AGENT_KINDS.join('、')}）`);
 }
 
 /** 告诉用户数据会发到哪里，只显示主机名 */
@@ -53,7 +55,7 @@ function destination(flags: ProfileFlags): string {
   if (flags['base-url']) return new URL(flags['base-url']).host;
   const fromFile = flags['key-file'] && readKeyFile(flags['key-file']).YUCHAO_BASE_URL;
   if (fromFile) return new URL(fromFile).host;
-  const base = flags['claude-code-config'] ? readClaudeCodeConnection(claudeCodeSettingsPath(defaultSourceDirs().claudeDir)).baseURL : process.env.ANTHROPIC_BASE_URL;
+  const base = flags['claude-code-config'] ? readClaudeCodeConnection(claudeCodeSettingsPath(defaultSourceDirs().claude!)).baseURL : process.env.ANTHROPIC_BASE_URL;
   return base ? new URL(base).host : 'api.anthropic.com';
 }
 
@@ -84,7 +86,7 @@ async function connect(flags: ProfileFlags): Promise<AnthropicOptions> {
     if (flags['ask-key']) opts.apiKey = await askSecret(`请粘贴 ${destination(flags)} 的 key（不会显示），然后按回车：`);
     if (flags['ask-key'] && !opts.apiKey) fail('没有输入 key');
   } else if (flags['claude-code-config']) {
-    opts.claudeCodeConfig = claudeCodeSettingsPath(defaultSourceDirs().claudeDir);
+    opts.claudeCodeConfig = claudeCodeSettingsPath(defaultSourceDirs().claude!);
   }
   return opts;
 }
@@ -118,7 +120,7 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
     case 'stats': {
       const st = activityStats(store);
       console.log(`${st.firstDay} → ${st.lastDay}，活跃 ${bold(String(st.activeDays))} 天，亲手写了 ${bold(String(st.userMessages))} 条消息（中位数 ${st.medianLength} 字）`);
-      console.log(`会话：${tag('claude')} ${st.sessions.claude}  ${tag('codex')} ${st.sessions.codex}`);
+      console.log(`会话：${AGENT_KINDS.filter((k) => st.sessions[k]).map((k) => `${agentLabel(k)} ${st.sessions[k]}`).join('  ')}`);
       const peak = st.byHour.indexOf(Math.max(...st.byHour));
       console.log(`最活跃的时段：${peak}:00–${peak + 1}:00`);
       console.log('\n各时段消息数：');

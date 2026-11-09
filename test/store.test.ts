@@ -12,7 +12,7 @@ const FIX = join(import.meta.dirname, 'fixtures');
 function setup(): { dirs: SourceDirs; store: Store } {
   const root = mkdtempSync(join(tmpdir(), 'yuchao-store-'));
   cpSync(FIX, root, { recursive: true });
-  return { dirs: { claudeDir: join(root, 'claude'), codexDir: join(root, 'codex') }, store: new Store(':memory:') };
+  return { dirs: { claude: join(root, 'claude'), codex: join(root, 'codex') }, store: new Store(':memory:') };
 }
 
 const C1 = 'codex/sessions/2026/11/01/rollout-2026-11-01T09-00-00-c1.jsonl';
@@ -47,7 +47,7 @@ test('文件没变时第二次索引全部跳过', async () => {
 test('文件追加内容后只重建这一个会话，且不会产生重复消息', async () => {
   const { dirs, store } = setup();
   await store.index(dirs);
-  const path = join(dirs.codexDir, '..', C1);
+  const path = join(dirs.codex!, '..', C1);
   appendFileSync(
     path,
     JSON.stringify({ timestamp: '2026-11-01T10:00:00.000Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '顺便部署到线上' }] } }) + '\n',
@@ -62,7 +62,7 @@ test('文件追加内容后只重建这一个会话，且不会产生重复消�
 test('文件被删除后，对应会话和搜索结果一起清掉', async () => {
   const { dirs, store } = setup();
   await store.index(dirs);
-  rmSync(join(dirs.codexDir, '..', C1));
+  rmSync(join(dirs.codex!, '..', C1));
   const r = await store.index(dirs);
   assert.equal(r.removed, 1);
   assert.equal(store.getSession('codex:c1'), null);
@@ -92,7 +92,7 @@ test('搜索默认只看对话，可以指定搜工具调用；可按 agent 过�
 
 test('分叉会话复制的历史在搜索结果里只出现一次', async () => {
   const { dirs, store } = setup();
-  const proj = join(dirs.claudeDir, 'projects', 'G--demo');
+  const proj = join(dirs.claude!, 'projects', 'G--demo');
   copyFileSync(join(proj, 's1.jsonl'), join(proj, 's1-fork.jsonl'));
   appendFileSync(
     join(proj, 's1-fork.jsonl'),

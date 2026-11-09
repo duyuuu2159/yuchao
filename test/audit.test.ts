@@ -27,7 +27,7 @@ async function setup(beforeIndex?: (root: string) => void) {
   appendFileSync(s1, JSON.stringify({ type: 'user', message: { role: 'user', content: '数据库 password=Hk3nWq7pZr2' }, timestamp: '2026-11-03T00:02:00.000Z' }) + '\n');
   beforeIndex?.(root);
   const store = new Store(':memory:');
-  await store.index({ claudeDir: join(root, 'claude'), codexDir: join(root, 'codex') });
+  await store.index({ claude: join(root, 'claude'), codex: join(root, 'codex') });
   return store;
 }
 
