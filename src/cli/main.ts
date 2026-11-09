@@ -4,6 +4,8 @@ import { defaultSourceDirs } from '../core/sources.ts';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { defaultDbPath, Store, type SearchOptions } from '../core/store.ts';
 import type { AgentKind, Role } from '../core/types.ts';
+import { ConfigManager } from '../core/configs.ts';
+import { runConfig } from './config.ts';
 import { runMemories, runProfile } from './profile.ts';
 import { bold, color, day, dim, fail, tag } from './style.ts';
 
@@ -40,6 +42,13 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao profile show [--scope]    查看最新画像和每条结论的出处
   yuchao profile diff [--scope]    对比最近两个版本
   yuchao profile export [--scope]  导出成可以放进 CLAUDE.md / AGENTS.md 的 Markdown
+  yuchao config                    各 agent 配置文件的状态（Claude settings.json、Codex config.toml 等）
+  yuchao config import             把旁边散落的旧备份导入版本时间线（原文件不动）
+  yuchao config log <文件>         查看版本历史，文件名写一部分即可，例如 codex、settings
+  yuchao config diff <文件> [旧] [新]  对比两个版本，默认对比最近版本和当前文件；current 表示当前文件
+  yuchao config show <版本号>      查看某个版本的内容（已打码）
+  yuchao config restore <版本号> --yes  回滚到某个版本，会先保存当前内容；损坏的版本需要 --force
+  yuchao config track|untrack <路径>    增加或取消跟踪的配置文件
   yuchao serve [--port 4317]       启动本地网页界面
 
 数据库位置：${defaultDbPath()}（可用环境变量 YUCHAO_DB 修改）`;
@@ -62,6 +71,7 @@ const { values, positionals } = parseArgs({
     'key-file': { type: 'string' },
     provider: { type: 'string' },
     yes: { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
@@ -89,6 +99,9 @@ try {
       if (process.stderr.isTTY) process.stderr.write('\n');
       console.log(`扫描 ${r.scanned} 个文件：新建或更新 ${r.indexed}，未变化跳过 ${r.skipped}，已删除 ${r.removed}，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
       for (const e of r.errors) console.log(`  解析失败 ${e.path}：${e.error}`);
+      // 顺手给配置文件拍快照：每次索引都会经过这里，配置的变化就能自然积累成历史
+      const snap = new ConfigManager(store, defaultSourceDirs()).snapshot();
+      if (snap.recorded.length) console.log(`配置有变化，已记录新版本：${snap.recorded.join('、')}`);
       break;
     }
     case 'search': {
@@ -163,6 +176,9 @@ ${sev} ${bold(f.ruleName)} ${f.masked}  ${dim(`指纹 ${f.fingerprint}`)}`);
       }
       break;
     }
+    case 'config':
+      runConfig(store, rest, values);
+      break;
     case 'memories':
       runMemories();
       break;
