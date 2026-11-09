@@ -870,3 +870,79 @@ pre {
   text-align: center;
   user-select: none;
 }
+
+/* 服务器面板 */
+.server-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.server-head b {
+  font-size: 16px;
+}
+.server-head button {
+  margin-left: auto;
+}
+.server-warnings {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.server-warnings li {
+  font-size: 13px;
+}
+.meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px 24px;
+  margin: 14px 0 18px;
+}
+.meter-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.meter-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--ok);
+}
+.meter-fill.warn {
+  background: var(--warn);
+}
+.meter-fill.bad {
+  background: var(--err);
+}
+.server h3 {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.server section + section h3 + * + h3 {
+  margin-top: 16px;
+}
+.server-log {
+  margin: 0 0 16px;
+  padding: 10px;
+  max-height: 280px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}

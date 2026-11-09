@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from '
 import { AGENT_LABEL, AGENTS, api, type Agent, type IndexResult, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
 import { when } from './format.ts';
 import { ConfigView } from './ConfigView.tsx';
+import { ServerView } from './ServerView.tsx';
 import { ProfileView } from './ProfileView.tsx';
 import { ScanView } from './ScanView.tsx';
 
@@ -24,7 +25,7 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export function App() {
-  const [view, setView] = useState<'sessions' | 'scan' | 'profile' | 'config'>('sessions');
+  const [view, setView] = useState<'sessions' | 'scan' | 'profile' | 'config' | 'server'>('sessions');
   // 默认打码显示，截图和演示时不会把密码露出去
   const [raw, setRaw] = useState(false);
   const [agent, setAgent] = useState<Agent | undefined>();
@@ -97,6 +98,9 @@ export function App() {
           <button className={view === 'config' ? 'on' : ''} onClick={() => setView('config')}>
             配置
           </button>
+          <button className={view === 'server' ? 'on' : ''} onClick={() => setView('server')}>
+            服务器
+          </button>
         </nav>
         <input
           className="search"
@@ -148,6 +152,10 @@ export function App() {
       ) : view === 'config' ? (
         <main className="detail">
           <ConfigView key={reloadKey} />
+        </main>
+      ) : view === 'server' ? (
+        <main className="detail">
+          <ServerView raw={raw} />
         </main>
       ) : (
         <div className="body">

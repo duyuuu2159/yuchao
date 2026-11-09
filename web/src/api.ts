@@ -204,3 +204,45 @@ export const configApi = {
   versions: (path: string) => get<ConfigVersion[]>(`/api/configs/versions?${qs({ path })}`),
   diff: (path: string, from: string, to: string) => get<ConfigDiff>(`/api/configs/diff?${qs({ path, from, to })}`),
 };
+
+export interface ServerConfig {
+  name: string;
+  host: string;
+  user: string;
+  port: number;
+  url?: string;
+}
+
+export interface ServerService {
+  name: string;
+  active: string;
+  sub: string;
+  since: string | null;
+  restarts: number;
+}
+
+export interface ServerReport {
+  server: ServerConfig;
+  checkedAt: string;
+  status: {
+    host: string;
+    uptime: number;
+    load: number[];
+    cpus: number | null;
+    memory: { total: number | null; available: number | null };
+    disk: { total: number; used: number; free: number };
+    services: ServerService[];
+    app: { url: string; status: number | null; ms: number | null; error?: string };
+    releases: { current: string | null; total: number; items: { name: string; mtime: number; current: boolean }[] };
+    serviceLog: string[];
+    nginxErrors: string[];
+  };
+  publicSite: { status: number | null; ms: number | null; error?: string } | null;
+  warnings: { level: 'bad' | 'warn'; text: string }[];
+  history: { release: string; seenAt: string }[];
+}
+
+export const serverApi = {
+  list: () => get<ServerConfig[]>('/api/servers'),
+  status: (name: string, raw?: boolean, fresh?: boolean) => get<ServerReport>(`/api/server?${qs({ name, raw: flag(raw), fresh: flag(fresh) })}`),
+};
