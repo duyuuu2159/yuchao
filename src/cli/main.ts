@@ -31,7 +31,10 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao profile models            列出接口上可用的 Claude 模型（支持 --claude-code-config）
   yuchao profile build --yes       调用大模型生成画像（会产生费用）
       --scope all|claude|codex     按全部会话，或只按某个 agent 的会话生成（默认 all）
-      --model <模型>               默认 claude-opus-5-5
+      --model <模型>|auto          默认 claude-opus-5-5；auto 从接口的模型列表里自动挑选
+      --base-url <地址> --ask-key  使用指定的接口，并在终端里询问 key（不显示、不保存）
+      --key-file <文件>            从文件读取 YUCHAO_BASE_URL、YUCHAO_API_KEY（可选 YUCHAO_PROVIDER）
+      --provider anthropic|openai  接口格式；只提供 GPT 等模型的中转站用 openai
       --claude-code-config         复用 ~/.claude/settings.json 里 Claude Code 的接口地址和令牌
       --no-fallbacks               不使用服务端拒答回退（中转站不支持时使用）
   yuchao profile show [--scope]    查看最新画像和每条结论的出处
@@ -54,6 +57,10 @@ const { values, positionals } = parseArgs({
     model: { type: 'string' },
     'claude-code-config': { type: 'boolean', default: false },
     'no-fallbacks': { type: 'boolean', default: false },
+    'base-url': { type: 'string' },
+    'ask-key': { type: 'boolean', default: false },
+    'key-file': { type: 'string' },
+    provider: { type: 'string' },
     yes: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },

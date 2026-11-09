@@ -1,11 +1,14 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { readClaudeMemories } from '../core/memories.ts';
 import { activityStats } from '../core/profile/evidence.ts';
-import { buildProfile, diffProfiles, exportMarkdown, latestProfile, previewPayload, profileHistory, type Scope } from '../core/profile/build.ts';
-import { AnthropicLlm, claudeCodeSettingsPath, DEFAULT_MODEL, readClaudeCodeConnection } from '../core/profile/llm.ts';
+import { buildProfile, ProfileBuildError, diffProfiles, exportMarkdown, latestProfile, previewPayload, profileHistory, type Scope } from '../core/profile/build.ts';
+import { AnthropicLlm, claudeCodeSettingsPath, DEFAULT_MODEL, pickModel, readClaudeCodeConnection, type AnthropicOptions } from '../core/profile/llm.ts';
 import { defaultSourceDirs } from '../core/sources.ts';
 import { defaultDbPath, type Store } from '../core/store.ts';
+import { OpenAiCompatibleLlm } from '../core/profile/openai.ts';
+import type { LlmClient } from '../core/profile/llm.ts';
+import { askSecret } from './secret.ts';
 import { bold, color, day, dim, fail, tag } from './style.ts';
 
 interface ProfileFlags {
@@ -13,7 +16,19 @@ interface ProfileFlags {
   model?: string;
   'claude-code-config'?: boolean;
   'no-fallbacks'?: boolean;
+  'base-url'?: string;
+  'ask-key'?: boolean;
+  'key-file'?: string;
+  provider?: string;
   yes?: boolean;
+}
+
+/** anthropic：Claude 官方格式（默认）；openai：/v1/chat/completions 格式，例如只提供 GPT 模型的中转站 */
+function makeLlm(conn: AnthropicOptions, model: string, provider: string): LlmClient {
+  if (provider === 'anthropic') return new AnthropicLlm({ ...conn, model });
+  if (provider !== 'openai') fail(`未知的接口格式：${provider}（可选 anthropic、openai）`);
+  if (!conn.baseURL || !conn.apiKey) fail('OpenAI 兼容接口需要 --key-file，或者 --base-url 加 --ask-key');
+  return new OpenAiCompatibleLlm({ baseURL: conn.baseURL, apiKey: conn.apiKey, model });
 }
 
 const MEMORY_TYPE: Record<string, string> = { user: '关于你', feedback: '做事要求', project: '项目', reference: '参考', other: '其他' };
@@ -35,8 +50,52 @@ function parseScope(s: string | undefined): Scope {
 
 /** 告诉用户数据会发到哪里，只显示主机名 */
 function destination(flags: ProfileFlags): string {
+  if (flags['base-url']) return new URL(flags['base-url']).host;
+  const fromFile = flags['key-file'] && readKeyFile(flags['key-file']).YUCHAO_BASE_URL;
+  if (fromFile) return new URL(fromFile).host;
   const base = flags['claude-code-config'] ? readClaudeCodeConnection(claudeCodeSettingsPath(defaultSourceDirs().claudeDir)).baseURL : process.env.ANTHROPIC_BASE_URL;
   return base ? new URL(base).host : 'api.anthropic.com';
+}
+
+/** 读取 `KEY=VALUE` 格式的 key 文件；# 开头的是注释 */
+export function readKeyFile(path: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
+    if (m) out[m[1]] = m[2].replace(/^['"](.*)['"]$/, '$1');
+  }
+  return out;
+}
+
+/**
+ * 连接方式，优先级：--key-file > --base-url / --ask-key > --claude-code-config > 环境变量。
+ * --ask-key 在终端里询问 key，key 不经过命令行参数，所以不会留在命令历史里。
+ */
+async function connect(flags: ProfileFlags): Promise<AnthropicOptions> {
+  const opts: AnthropicOptions = { fallbacks: !flags['no-fallbacks'] };
+  if (flags['key-file']) {
+    const conf = readKeyFile(flags['key-file']);
+    if (!conf.YUCHAO_API_KEY) fail(`${flags['key-file']} 里的 YUCHAO_API_KEY 还是空的，粘贴 key 后保存再运行。`);
+    opts.baseURL = (flags['base-url'] ?? conf.YUCHAO_BASE_URL)?.replace(/\/v1\/?$/, '');
+    opts.apiKey = conf.YUCHAO_API_KEY;
+  } else if (flags['base-url'] || flags['ask-key']) {
+    // SDK 会自己拼上 /v1/messages，用户照抄中转站给的 .../v1 地址时去掉结尾的 /v1
+    opts.baseURL = flags['base-url']?.replace(/\/v1\/?$/, '');
+    if (flags['ask-key']) opts.apiKey = await askSecret(`请粘贴 ${destination(flags)} 的 key（不会显示），然后按回车：`);
+    if (flags['ask-key'] && !opts.apiKey) fail('没有输入 key');
+  } else if (flags['claude-code-config']) {
+    opts.claudeCodeConfig = claudeCodeSettingsPath(defaultSourceDirs().claudeDir);
+  }
+  return opts;
+}
+
+/** 根据接口返回的错误，给出下一步建议 */
+export function hint(error: string): string {
+  if (/\b429\b|credit|余额|quota|充值/i.test(error)) return '建议：接口的额度或余额不足，请到对应平台充值，或换一个接口。';
+  if (/\b40[13]\b|auth|token|key/i.test(error)) return '建议：key 无效或没有权限，检查 key 是否正确、是否已作废。';
+  if (/\b404\b|model/i.test(error)) return '建议：模型名可能不对，运行 yuchao profile models 查看可用的模型。';
+  if (/fallback|beta/i.test(error)) return '建议：接口可能不支持拒答回退，加上 --no-fallbacks 重试。';
+  return '建议：检查网络和接口地址后重试。';
 }
 
 function printProfile(store: Store, scope: Scope) {
@@ -81,24 +140,37 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
     }
     case 'build': {
       const p = previewPayload(store, scope);
-      const model = flags.model ?? DEFAULT_MODEL;
       const dest = destination(flags);
+      const wanted = flags.model ?? DEFAULT_MODEL;
       if (!flags.yes) {
-        console.log(`将把 ${p.sessions.length} 个会话中你写的话（约 ${p.chars.toLocaleString()} 字，已打码）发送到 ${bold(dest)}，使用模型 ${model}。`);
+        console.log(`将把 ${p.sessions.length} 个会话中你写的话（约 ${p.chars.toLocaleString()} 字，已打码）发送到 ${bold(dest)}，使用模型 ${wanted === 'auto' ? '（自动从接口上挑选）' : wanted}。`);
         console.log('已经总结过且没有变化的会话会直接用缓存，不会重复发送。');
         console.log(`确认后加上 --yes 重新运行。想先看具体内容，运行 yuchao profile preview`);
         return;
       }
-      const llm = new AnthropicLlm({
-        model,
-        fallbacks: !flags['no-fallbacks'],
-        claudeCodeConfig: flags['claude-code-config'] ? claudeCodeSettingsPath(defaultSourceDirs().claudeDir) : undefined,
-      });
+      const conn = await connect(flags);
+      const provider = flags.provider ?? (flags['key-file'] && readKeyFile(flags['key-file']).YUCHAO_PROVIDER) ?? 'anthropic';
+      let model = wanted;
+      if (model === 'auto') {
+        if (provider === 'openai') fail('OpenAI 兼容接口需要用 --model 指定模型名，可以先运行 yuchao profile models 查看。');
+        const picked = pickModel(await new AnthropicLlm(conn).listModels());
+        if (!picked) fail(`${dest} 上没有可用的 Claude 模型。如果它只提供 GPT 等模型，加上 --provider openai --model <模型名>。`);
+        model = picked;
+      }
+      const llm = makeLlm(conn, model, provider);
       console.error(`发送到 ${dest}，模型 ${model}`);
-      const v = await buildProfile(store, llm, {
-        scope,
-        onProgress: (done, total) => process.stderr.isTTY && process.stderr.write(`\r总结会话 ${done}/${total}`),
-      });
+      let v;
+      try {
+        v = await buildProfile(store, llm, {
+          scope,
+          onProgress: (done, total) => process.stderr.isTTY && process.stderr.write(`\r总结会话 ${done}/${total}`),
+        });
+      } catch (e: any) {
+        if (process.stderr.isTTY) process.stderr.write('\n');
+        if (e instanceof ProfileBuildError) fail(`${e.message}\n${hint(e.firstError)}`);
+        // 汇总那一步失败时，已经总结好的会话都在缓存里，重跑不会重复花钱
+        fail(`生成失败：${e.message ?? e}\n已经总结好的会话已缓存，重新运行会从缓存继续。`);
+      }
       if (process.stderr.isTTY) process.stderr.write('\n');
       const m = v.meta;
       console.log(`完成：新总结 ${m.notesGenerated} 个会话，复用缓存 ${m.notesCached} 个，失败 ${m.notesFailed.length} 个；用时 ${(m.ms / 1000).toFixed(0)} 秒`);
@@ -110,11 +182,12 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       break;
     }
     case 'models': {
-      const llm = new AnthropicLlm({ claudeCodeConfig: flags['claude-code-config'] ? claudeCodeSettingsPath(defaultSourceDirs().claudeDir) : undefined });
-      const ids = await llm.listModels();
+      const ids = await new AnthropicLlm(await connect(flags)).listModels();
       const claude = ids.filter((id) => /claude/i.test(id));
       console.log(`${destination(flags)} 上有 ${ids.length} 个模型，其中 Claude 模型 ${claude.length} 个：`);
       for (const id of claude) console.log(`  ${id}`);
+      const picked = pickModel(ids);
+      if (picked) console.log(dim(`--model auto 会选择：${picked}`));
       break;
     }
     case 'show':
