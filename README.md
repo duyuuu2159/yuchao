@@ -7,6 +7,7 @@
 - **增量索引**：只重新解析有变化的文件，日常更新只要几秒
 - **安全扫描**：找出会话里泄露的密码、API key、私钥，同一个秘密归为一组；报告和界面默认打码，不显示原文
 - **Agent 眼中的你**：展示 Claude 自己写下的关于你的记忆；本地统计你和 AI 的相处方式；用大模型从你写的话里整理画像，每条结论都附出处，程序会剔除模型编造的引用
+- **配置管家**：给 Claude、Codex 的配置文件记版本，把散落的旧备份整理成一条时间线，检查哪些版本已损坏，安全回滚
 - **认得清来源**：区分你亲手写的话、agent 的回复、工具调用和客户端自动注入的上下文；子 agent 会话挂在父会话下面；分叉会话复制的历史在搜索结果里只出现一次
 
 ## 支持的 agent
@@ -58,6 +59,9 @@ node src/cli/main.ts serve
 | `profile preview` | 把将要发给大模型的完整内容写到文件里，发送前检查 |
 | `profile build --yes` | 生成画像（会产生费用）；`--scope all|claude|codex` |
 | `profile show` / `diff` / `export` | 查看画像和出处、对比两个版本、导出成 CLAUDE.md 片段 |
+| `config` | 配置文件状态；`config import` 导入旧备份，`config log <文件>` 查看历史 |
+| `config diff <文件> [旧] [新]` | 对比两个版本（已打码） |
+| `config restore <版本> --yes` | 回滚，先保存当前内容；损坏的版本需要 `--force` |
 | `serve` | 启动本地网页界面，只监听 127.0.0.1，只接受本机 Host，写操作需要自定义请求头 |
 
 索引存放在 `~/.yuchao/index.db`，可用环境变量 `YUCHAO_DB` 修改。
@@ -96,6 +100,8 @@ src/core/      解析器、索引、搜索、安全扫描（不依赖界面）
   scan.ts      扫描规则、打码和指纹
   audit.ts     对整个索引做扫描并汇总
   memories.ts  读取 Claude 的记忆文件
+  configs.ts   配置管家：版本、导入备份、校验、回滚
+  diff.ts      逐行差异对比
   profile/     画像：证据抽取、本地统计、大模型接口、生成与引用校验
 src/cli/       命令行入口
 src/server/    本地 HTTP API 和静态文件服务
@@ -106,7 +112,7 @@ docs/          计划和开发日志
 
 ## 路线图
 
-见 [docs/PLAN.md](docs/PLAN.md)。已完成 M1（统一会话库）、M2（安全扫描）和 M3（Agent 眼中的你），开发过程见 [docs/devlog.md](docs/devlog.md)。
+见 [docs/PLAN.md](docs/PLAN.md)。已完成 M1（统一会话库）、M2（安全扫描）、M3（Agent 眼中的你）和 M4（配置管家），开发过程见 [docs/devlog.md](docs/devlog.md)。
 
 ## 许可
 
