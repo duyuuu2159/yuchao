@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { profileApi, type ActivityStats, type AgentMemory, type ProfileDiff, type ProfileOverview, type ProfileVersion, type Scope } from './api.ts';
+import { AGENT_LABEL, AGENTS, profileApi, type ActivityStats, type AgentMemory, type ProfileDiff, type ProfileOverview, type ProfileVersion, type Scope } from './api.ts';
 import { when } from './format.ts';
 
-const SCOPE_LABEL: Record<Scope, string> = { all: '综合', claude: 'Claude 眼中', codex: 'Codex 眼中' };
+const SCOPE_LABEL = (s: Scope) => (s === 'all' ? '综合' : `${AGENT_LABEL[s]} 眼中`);
 const MEMORY_TYPE: Record<AgentMemory['type'], string> = { user: '关于你', feedback: '做事要求', project: '项目', reference: '参考', other: '其他' };
 
 export function ProfileView({ onOpen }: { onOpen: (sessionId: string) => void }) {
@@ -41,10 +41,10 @@ function Stats({ stats }: { stats: ActivityStats }) {
           <span>亲手写的消息</span>
         </div>
         <div className="stat">
-          <b>
-            {stats.sessions.claude} / {stats.sessions.codex}
-          </b>
-          <span>Claude / Codex 会话</span>
+          <b>{AGENTS.reduce((n, a) => n + (stats.sessions[a] ?? 0), 0)}</b>
+          <span title={AGENTS.filter((a) => stats.sessions[a]).map((a) => `${AGENT_LABEL[a]} ${stats.sessions[a]}`).join('，')}>
+            个会话，来自 {AGENTS.filter((a) => stats.sessions[a]).length} 个 agent
+          </span>
         </div>
         <div className="stat">
           <b>{peak}点</b>
@@ -120,22 +120,27 @@ function HourChart({ byHour }: { byHour: number[] }) {
 function Memories({ memories, onOpen }: { memories: AgentMemory[]; onOpen: (sessionId: string) => void }) {
   return (
     <section>
-      <h2>Claude 已经记住的事</h2>
-      <p className="hint">这些是 Claude Code 在和你合作时自己写下的记忆，存在 ~/.claude/projects/*/memory/ 里，下次对话会自动读取。Codex 的记忆库目前是空的。</p>
+      <h2>agent 已经记住的事</h2>
+      <p className="hint">
+        这些是 agent 在和你合作时自己写下的记忆，下次对话会自动读取：Claude Code 存在 ~/.claude/projects/*/memory/，WorkBuddy 存在 ~/.workbuddy 的
+        USER.md、MEMORY.md 和 memory/ 里。
+      </p>
       {memories.length === 0 && <div className="empty">没有找到记忆文件。</div>}
       <div className="memories">
         {memories.map((m) => (
-          <details key={m.project + m.name} className="memory">
+          <details key={m.agent + m.project + m.name} className="memory">
             <summary>
+              <span className={'badge ' + m.agent}>{AGENT_LABEL[m.agent]}</span>
               <span className={'mem-type ' + m.type}>{MEMORY_TYPE[m.type]}</span>
               <b>{m.description || m.name}</b>
               <span className="meta">
-                {m.project} · {when(m.modified)}
+                {m.project ? m.project + ' · ' : ''}
+                {when(m.modified)}
               </span>
             </summary>
             <pre>{m.body}</pre>
             {m.originSessionId && (
-              <button className="link" onClick={() => onOpen(`claude:${m.originSessionId}`)}>
+              <button className="link" onClick={() => onOpen(`${m.agent}:${m.originSessionId}`)}>
                 查看写下这条记忆的会话 →
               </button>
             )}
@@ -147,7 +152,7 @@ function Memories({ memories, onOpen }: { memories: AgentMemory[]; onOpen: (sess
 }
 
 function Profiles({ latest, versions, onOpen }: { latest: ProfileOverview['latest']; versions: ProfileOverview['versions']; onOpen: (sessionId: string) => void }) {
-  const available = (['all', 'claude', 'codex'] as const).filter((s) => latest[s]);
+  const available = (['all', ...AGENTS] as Scope[]).filter((s) => latest[s]);
   const [scope, setScope] = useState<Scope>(available[0] ?? 'all');
   const [diff, setDiff] = useState<ProfileDiff | null>(null);
   const v = latest[scope];
@@ -169,9 +174,9 @@ function Profiles({ latest, versions, onOpen }: { latest: ProfileOverview['lates
       ) : (
         <>
           <div className="seg" role="group" aria-label="画像范围">
-            {(['all', 'claude', 'codex'] as const).map((s) => (
+            {(['all', ...AGENTS] as Scope[]).filter((s) => s === 'all' || latest[s]).map((s) => (
               <button key={s} className={scope === s ? 'on' : ''} disabled={!latest[s]} onClick={() => setScope(s)}>
-                {SCOPE_LABEL[s]}
+                {SCOPE_LABEL(s)}
               </button>
             ))}
           </div>
@@ -230,7 +235,7 @@ function Claim({ claim, onOpen }: { claim: ClaimData; onOpen: (sessionId: string
       <span className="evidence">
         {shown.map((e) => (
           <button key={e.sessionId} className="chip" title={e.title} onClick={() => onOpen(e.sessionId)}>
-            {e.agent === 'claude' ? 'Claude' : 'Codex'} · {e.title.length > 14 ? e.title.slice(0, 14) + '…' : e.title}
+            {AGENT_LABEL[e.agent]} · {e.title.length > 14 ? e.title.slice(0, 14) + '…' : e.title}
           </button>
         ))}
         {claim.evidence.length > shown.length && (

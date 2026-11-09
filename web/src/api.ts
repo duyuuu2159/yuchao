@@ -1,6 +1,8 @@
 // 与 src/core/store.ts 中返回给前端的数据结构保持一致
 
-export type Agent = 'claude' | 'codex';
+export type Agent = 'claude' | 'codex' | 'workbuddy' | 'dsh';
+export const AGENTS: Agent[] = ['claude', 'codex', 'workbuddy', 'dsh'];
+export const AGENT_LABEL: Record<Agent, string> = { claude: 'Claude', codex: 'Codex', workbuddy: 'WorkBuddy', dsh: 'DeepSeek' };
 export type Role = 'user' | 'assistant' | 'tool_call' | 'tool_result' | 'context';
 
 export interface SessionRow {
@@ -122,7 +124,7 @@ export interface ActivityStats {
 }
 
 export interface AgentMemory {
-  agent: 'claude';
+  agent: Agent;
   project: string;
   name: string;
   description: string;

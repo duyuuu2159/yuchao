@@ -7,6 +7,8 @@
   --accent: #2f6f6a;
   --claude: #c2622d;
   --codex: #3d5a99;
+  --workbuddy: #2a7a4b;
+  --dsh: #6a4cb0;
   --user-bg: #eef5f3;
   --mark: #ffe08a;
   --err: #b3261e;
@@ -27,6 +29,8 @@
     --accent: #6fb8b0;
     --claude: #e08a5a;
     --codex: #8aa6e0;
+    --workbuddy: #6cc28f;
+    --dsh: #b39ae8;
     --user-bg: #1e2a28;
     --mark: #6b5a1e;
     --err: #f2867e;
@@ -209,6 +213,12 @@ button {
 }
 .badge.codex {
   background: var(--codex);
+}
+.badge.workbuddy {
+  background: var(--workbuddy);
+}
+.badge.dsh {
+  background: var(--dsh);
 }
 .snippet {
   margin-top: 4px;

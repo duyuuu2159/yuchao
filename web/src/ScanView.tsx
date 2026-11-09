@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type AuditResult, type Finding } from './api.ts';
+import { AGENT_LABEL, api, type AuditResult, type Finding } from './api.ts';
 import { when } from './format.ts';
 
 const RULE_ADVICE: Record<string, string> = {
@@ -99,7 +99,7 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
             {f.occurrences.slice(0, 5).map((o, i) => (
               <li key={i}>
                 <button className="occ" onClick={() => onOpen(o.sessionId, o.seq)}>
-                  <span className={'badge ' + o.agent}>{o.agent === 'claude' ? 'Claude' : 'Codex'}</span>
+                  <span className={'badge ' + o.agent}>{AGENT_LABEL[o.agent]}</span>
                   <span className="where">{o.where === 'title' ? '会话标题' : o.where}</span>
                   <span className="occ-title">{o.title ?? '（无标题）'}</span>
                   <span className="meta">{when(o.ts)}</span>

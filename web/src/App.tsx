@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
-import { api, type Agent, type IndexResult, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
+import { AGENT_LABEL, AGENTS, api, type Agent, type IndexResult, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
 import { when } from './format.ts';
 import { ConfigView } from './ConfigView.tsx';
 import { ProfileView } from './ProfileView.tsx';
 import { ScanView } from './ScanView.tsx';
 
-const AGENT_LABEL: Record<Agent, string> = { claude: 'Claude', codex: 'Codex' };
 
 /** 把命中的关键词包上 <mark> */
 function highlight(text: string, terms: string[]): ReactNode {
@@ -108,7 +107,7 @@ export function App() {
           autoFocus
         />
         <div className="seg" role="group" aria-label="按 agent 筛选">
-          {([undefined, 'claude', 'codex'] as const).map((a) => (
+          {[undefined, ...AGENTS].map((a) => (
             <button key={a ?? 'all'} className={agent === a ? 'on' : ''} onClick={() => setAgent(a)}>
               {a ? AGENT_LABEL[a] : '全部'}
             </button>
