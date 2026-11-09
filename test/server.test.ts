@@ -5,7 +5,7 @@ import { createServer, request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createApp, isAllowedHost } from '../src/server/main.ts';
+import { createApp, isAllowedHost, serveStatic } from '../src/server/main.ts';
 import { Store } from '../src/core/store.ts';
 import { ConfigManager } from '../src/core/configs.ts';
 
@@ -117,4 +117,64 @@ test('配置接口只读，差异内容打码，损坏的版本不逐行对比',
   } finally {
     srv.close();
   }
+});
+
+test('服务器接口只读：结果缓存 30 秒，连接失败返回 502，没有任何写接口', async () => {
+  let calls = 0;
+  let fail = false;
+  const report = (release: string) => ({
+    server: { name: 'demo', host: '203.0.113.7', user: 'root', port: 22 },
+    checkedAt: '2026-11-09T00:00:00Z',
+    status: { releases: { current: release, total: 1, items: [] } },
+    publicSite: null,
+    warnings: [],
+  });
+  const srv = createServer(
+    createApp(new Store(':memory:'), { claude: join(EMPTY, '.claude') }, {
+      servers: () => [{ name: 'demo', host: '203.0.113.7', user: 'root', port: 22 }],
+      checkServer: async () => {
+        calls++;
+        if (fail) throw new Error('Permission denied (publickey)');
+        return report(calls === 1 ? 'r1' : 'r2') as any;
+      },
+    }),
+  );
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+  try {
+    const a = await (await fetch(base + '/api/server')).json();
+    const b = await (await fetch(base + '/api/server?name=demo')).json();
+    assert.equal(calls, 1, '30 秒内复用结果');
+    assert.equal(b.status.releases.current, 'r1');
+    const c = await (await fetch(base + '/api/server?fresh=1')).json();
+    assert.equal(calls, 2);
+    assert.deepEqual(c.history.map((h: any) => h.release), ['r2', 'r1'], '线上版本变化被记录');
+    assert.equal(a.server.name, 'demo');
+    fail = true;
+    const e = await fetch(base + '/api/server?fresh=1');
+    assert.equal(e.status, 502);
+    assert.match((await e.json()).error, /publickey/);
+    for (const p of ['/api/server', '/api/server/rollback']) assert.equal((await fetch(base + p, { method: 'POST', headers: { 'x-yuchao': '1' } })).status, 404, p);
+  } finally {
+    srv.close();
+  }
+});
+
+test('网页文件：挡住 .. 、反斜杠和盘符，找不到的路径回到 index.html', () => {
+  const reads: string[] = [];
+  const read = (rel: string) => (reads.push(rel), rel === 'index.html' || rel === 'assets/app.js' ? Buffer.from(rel) : null);
+  const call = (path: string) => {
+    const res: any = { status: 0, type: '', body: '', writeHead(s: number, h?: any) { this.status = s; this.type = h?.['content-type'] ?? ''; }, end(b?: any) { this.body = String(b ?? ''); } };
+    serveStatic(path, res, read);
+    return res;
+  };
+  for (const bad of ['/../package.json', '/assets/..%2f..%2fpackage.json', '/assets%5c..%5c..%5cpackage.json', '/C:/Windows/win.ini']) {
+    assert.equal(call(bad).status, 403, bad);
+  }
+  assert.equal(reads.length, 0, '被拒绝的路径一个文件都没读');
+  const js = call('/assets/app.js');
+  assert.equal(js.body, 'assets/app.js');
+  assert.match(js.type, /javascript/);
+  assert.equal(call('/server').body, 'index.html');
+  assert.equal(call('/').body, 'index.html');
 });

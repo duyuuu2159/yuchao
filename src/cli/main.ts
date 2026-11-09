@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { isSea } from 'node:sea';
 import { parseArgs } from 'node:util';
 import { AGENT_KINDS, isAgentKind } from '../core/agents.ts';
 import { defaultSourceDirs } from '../core/sources.ts';
@@ -50,6 +51,10 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao config show <版本号>      查看某个版本的内容（已打码）
   yuchao config restore <版本号> --yes  回滚到某个版本，会先保存当前内容；损坏的版本需要 --force
   yuchao config track|untrack <路径>    增加或取消跟踪的配置文件
+  yuchao server [名字]             服务器面板：服务、版本、磁盘、最近的异常（只读，--json 输出 JSON）
+  yuchao server add <名字> <用户名@主机[:端口]> [--url https://域名]  添加服务器
+  yuchao server setup [名字]       生成只读专用密钥，打印服务器上需要做的配置
+  yuchao server list|remove        列出或移除服务器
   yuchao serve [--port 4317]       启动本地网页界面
 
 数据库位置：${defaultDbPath()}（可用环境变量 YUCHAO_DB 修改）`;
@@ -71,6 +76,7 @@ const { values, positionals } = parseArgs({
     'ask-key': { type: 'boolean', default: false },
     'key-file': { type: 'string' },
     provider: { type: 'string' },
+    url: { type: 'string' },
     yes: { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
@@ -85,116 +91,131 @@ const limit = values.limit ? Number(values.limit) : undefined;
 const you = color('32')('你');
 const them = color('35')('agent');
 
-if (values.help || !cmd) {
+if (!cmd && !values.help && isSea()) {
+  // 双击 yuchao.exe：更新索引，启动网页并打开浏览器
+  import('./desktop.ts').then(({ runDesktop }) => runDesktop(Number(values.port))).catch((e) => fail(e?.stack ?? String(e)));
+} else if (values.help || !cmd) {
   console.log(HELP);
   process.exit(0);
 }
 
-const store = new Store();
-try {
-  switch (cmd) {
-    case 'index': {
-      const r = await store.index(defaultSourceDirs(), (done, total) => {
-        if (process.stderr.isTTY) process.stderr.write(`\r索引中 ${done}/${total}`);
-      });
-      if (process.stderr.isTTY) process.stderr.write('\n');
-      console.log(`扫描 ${r.scanned} 个文件：新建或更新 ${r.indexed}，未变化跳过 ${r.skipped}，已删除 ${r.removed}，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
-      for (const e of r.errors) console.log(`  解析失败 ${e.path}：${e.error}`);
-      // 顺手给配置文件拍快照：每次索引都会经过这里，配置的变化就能自然积累成历史
-      const snap = new ConfigManager(store, defaultSourceDirs()).snapshot();
-      if (snap.recorded.length) console.log(`配置有变化，已记录新版本：${snap.recorded.join('、')}`);
-      break;
-    }
-    case 'search': {
-      const q = rest.join(' ');
-      if (!q) fail('请输入要搜索的关键词');
-      const opts: SearchOptions = { agent, limit: limit ?? 20 };
-      if (values.tools) opts.roles = ['user', 'assistant', 'tool_call', 'tool_result'] satisfies Role[];
-      const hits = store.search(q, opts);
-      if (!hits.length) console.log('没有找到结果。如果刚用过 agent，先运行 yuchao index');
-      for (const h of hits) {
-        console.log(`${tag(h.agent)} ${bold(h.title ?? '(无标题)')} ${dim(day(h.ts))}`);
-        console.log(`  ${dim(h.role + (h.toolName ? ':' + h.toolName : ''))} ${h.snippet}`);
-        if (h.alsoIn) console.log(dim(`  （另有 ${h.alsoIn} 个分叉会话包含同一条消息）`));
-        console.log(dim(`  yuchao show ${h.sessionId}`));
-      }
-      break;
-    }
-    case 'sessions': {
-      for (const s of store.listSessions({ agent, includeSubagents: values.all, limit: limit ?? 30 })) {
-        console.log(`${tag(s.agent)} ${dim(day(s.updatedAt))} ${bold(s.title ?? '(无标题)')} ${dim(`${s.messageCount} 条 · ${s.id}`)}`);
-      }
-      break;
-    }
-    case 'show': {
-      const s = store.getSession(rest[0] ?? fail('请提供会话 id'));
-      if (!s) fail(`找不到会话 ${rest[0]}`);
-      console.log(`${tag(s.agent)} ${bold(s.title ?? '(无标题)')}`);
-      console.log(dim(`${s.cwd ?? ''}  ${day(s.startedAt)} → ${day(s.updatedAt)}  ${s.sourcePath}`));
-      for (const c of s.children) console.log(dim(`  子 agent：${c.title} (${c.id})`));
-      const shown = new Set<string>(values.tools ? ['user', 'assistant', 'tool_call', 'tool_result'] : ['user', 'assistant']);
-      for (const m of s.messages as any[]) {
-        if (!shown.has(m.role)) continue;
-        const who = m.role === 'user' ? you : m.role === 'assistant' ? them : dim(m.role + (m.toolName ? ':' + m.toolName : ''));
-        console.log(`\n${who} ${dim(day(m.ts))}\n${m.text}`);
-      }
-      break;
-    }
-    case 'stats': {
-      const st = store.stats();
-      for (const r of st.sessions) console.log(`${tag(r.agent)} ${r.n} 个会话`);
-      console.log(st.messages.map((r: any) => `${r.role} ${r.n}`).join('  '));
-      console.log(dim(`时间跨度：${day(st.range.first)} → ${day(st.range.last)}`));
-      break;
-    }
-    case 'scan': {
-      const [sub, fp] = rest;
-      if (sub === 'ignore' || sub === 'unignore') {
-        if (!fp) fail('请提供指纹（yuchao scan 输出里的 16 位编号）');
-        (sub === 'ignore' ? ignoreFinding : unignoreFinding)(store, fp);
-        console.log(sub === 'ignore' ? `已标记为误报：${fp}` : `已取消误报标记：${fp}`);
+// 不用顶层 await：打包成单文件程序时，Node 只支持 CommonJS 入口
+async function run(store: Store) {
+  try {
+    switch (cmd) {
+      case 'index': {
+        const r = await store.index(defaultSourceDirs(), (done, total) => {
+          if (process.stderr.isTTY) process.stderr.write(`\r索引中 ${done}/${total}`);
+        });
+        if (process.stderr.isTTY) process.stderr.write('\n');
+        console.log(`扫描 ${r.scanned} 个文件：新建或更新 ${r.indexed}，未变化跳过 ${r.skipped}，已删除 ${r.removed}，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
+        for (const e of r.errors) console.log(`  解析失败 ${e.path}：${e.error}`);
+        // 顺手给配置文件拍快照：每次索引都会经过这里，配置的变化就能自然积累成历史
+        const snap = new ConfigManager(store, defaultSourceDirs()).snapshot();
+        if (snap.recorded.length) console.log(`配置有变化，已记录新版本：${snap.recorded.join('、')}`);
         break;
       }
-      if (sub) fail(`未知的子命令：scan ${sub}`);
-      const r = audit(store, { includeIgnored: values.all });
-      if (values.json) {
-        console.log(JSON.stringify(r, null, 2));
-        break;
-      }
-      const high = r.findings.filter((f) => f.severity === 'high');
-      console.log(`扫描了 ${r.scannedMessages} 条消息和 ${r.scannedTitles} 个会话标题，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
-      console.log(`发现 ${r.findings.length} 个不同的秘密，其中高风险 ${high.length} 个` + (r.ignored ? `；另有 ${r.ignored} 处已标记为误报` : ''));
-      for (const f of r.findings) {
-        const sev = f.severity === 'high' ? color('31')('高风险') : color('33')('中风险');
-        console.log(`
-${sev} ${bold(f.ruleName)} ${f.masked}  ${dim(`指纹 ${f.fingerprint}`)}`);
-        console.log(dim(`  出现 ${f.count} 次，涉及 ${f.sessionCount} 个会话，${day(f.firstSeen)} → ${day(f.lastSeen)}`));
-        for (const o of f.occurrences.slice(0, 3)) {
-          console.log(`  ${dim(o.where === 'title' ? '会话标题' : o.where)} ${o.context}`);
-          console.log(dim(`    ${o.title ?? ''}  yuchao show ${o.sessionId}`));
+      case 'search': {
+        const q = rest.join(' ');
+        if (!q) fail('请输入要搜索的关键词');
+        const opts: SearchOptions = { agent, limit: limit ?? 20 };
+        if (values.tools) opts.roles = ['user', 'assistant', 'tool_call', 'tool_result'] satisfies Role[];
+        const hits = store.search(q, opts);
+        if (!hits.length) console.log('没有找到结果。如果刚用过 agent，先运行 yuchao index');
+        for (const h of hits) {
+          console.log(`${tag(h.agent)} ${bold(h.title ?? '(无标题)')} ${dim(day(h.ts))}`);
+          console.log(`  ${dim(h.role + (h.toolName ? ':' + h.toolName : ''))} ${h.snippet}`);
+          if (h.alsoIn) console.log(dim(`  （另有 ${h.alsoIn} 个分叉会话包含同一条消息）`));
+          console.log(dim(`  yuchao show ${h.sessionId}`));
         }
-        if (f.occurrences.length > 3) console.log(dim(`  …还有 ${f.count - 3} 处`));
+        break;
       }
-      break;
+      case 'sessions': {
+        for (const s of store.listSessions({ agent, includeSubagents: values.all, limit: limit ?? 30 })) {
+          console.log(`${tag(s.agent)} ${dim(day(s.updatedAt))} ${bold(s.title ?? '(无标题)')} ${dim(`${s.messageCount} 条 · ${s.id}`)}`);
+        }
+        break;
+      }
+      case 'show': {
+        const s = store.getSession(rest[0] ?? fail('请提供会话 id'));
+        if (!s) fail(`找不到会话 ${rest[0]}`);
+        console.log(`${tag(s.agent)} ${bold(s.title ?? '(无标题)')}`);
+        console.log(dim(`${s.cwd ?? ''}  ${day(s.startedAt)} → ${day(s.updatedAt)}  ${s.sourcePath}`));
+        for (const c of s.children) console.log(dim(`  子 agent：${c.title} (${c.id})`));
+        const shown = new Set<string>(values.tools ? ['user', 'assistant', 'tool_call', 'tool_result'] : ['user', 'assistant']);
+        for (const m of s.messages as any[]) {
+          if (!shown.has(m.role)) continue;
+          const who = m.role === 'user' ? you : m.role === 'assistant' ? them : dim(m.role + (m.toolName ? ':' + m.toolName : ''));
+          console.log(`\n${who} ${dim(day(m.ts))}\n${m.text}`);
+        }
+        break;
+      }
+      case 'stats': {
+        const st = store.stats();
+        for (const r of st.sessions) console.log(`${tag(r.agent)} ${r.n} 个会话`);
+        console.log(st.messages.map((r: any) => `${r.role} ${r.n}`).join('  '));
+        console.log(dim(`时间跨度：${day(st.range.first)} → ${day(st.range.last)}`));
+        break;
+      }
+      case 'scan': {
+        const [sub, fp] = rest;
+        if (sub === 'ignore' || sub === 'unignore') {
+          if (!fp) fail('请提供指纹（yuchao scan 输出里的 16 位编号）');
+          (sub === 'ignore' ? ignoreFinding : unignoreFinding)(store, fp);
+          console.log(sub === 'ignore' ? `已标记为误报：${fp}` : `已取消误报标记：${fp}`);
+          break;
+        }
+        if (sub) fail(`未知的子命令：scan ${sub}`);
+        const r = audit(store, { includeIgnored: values.all });
+        if (values.json) {
+          console.log(JSON.stringify(r, null, 2));
+          break;
+        }
+        const high = r.findings.filter((f) => f.severity === 'high');
+        console.log(`扫描了 ${r.scannedMessages} 条消息和 ${r.scannedTitles} 个会话标题，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
+        console.log(`发现 ${r.findings.length} 个不同的秘密，其中高风险 ${high.length} 个` + (r.ignored ? `；另有 ${r.ignored} 处已标记为误报` : ''));
+        for (const f of r.findings) {
+          const sev = f.severity === 'high' ? color('31')('高风险') : color('33')('中风险');
+          console.log(`
+  ${sev} ${bold(f.ruleName)} ${f.masked}  ${dim(`指纹 ${f.fingerprint}`)}`);
+          console.log(dim(`  出现 ${f.count} 次，涉及 ${f.sessionCount} 个会话，${day(f.firstSeen)} → ${day(f.lastSeen)}`));
+          for (const o of f.occurrences.slice(0, 3)) {
+            console.log(`  ${dim(o.where === 'title' ? '会话标题' : o.where)} ${o.context}`);
+            console.log(dim(`    ${o.title ?? ''}  yuchao show ${o.sessionId}`));
+          }
+          if (f.occurrences.length > 3) console.log(dim(`  …还有 ${f.count - 3} 处`));
+        }
+        break;
+      }
+      case 'config':
+        runConfig(store, rest, values);
+        break;
+      case 'server': {
+        const { runServer } = await import('./server.ts');
+        await runServer(store, rest, values);
+        break;
+      }
+      case 'memories':
+        runMemories();
+        break;
+      case 'profile':
+        await runProfile(store, rest[0], values);
+        break;
+      case 'serve': {
+        const { serve } = await import('../server/main.ts');
+        store.close();
+        await serve(Number(values.port)).catch((e) => {
+          if (e.code === 'EADDRINUSE') fail(`端口 ${values.port} 已被占用：鱼巢可能已经在运行，或者用 --port 换一个端口`);
+          throw e;
+        });
+        break;
+      }
+      default:
+        fail(`未知命令：${cmd}\n\n${HELP}`);
     }
-    case 'config':
-      runConfig(store, rest, values);
-      break;
-    case 'memories':
-      runMemories();
-      break;
-    case 'profile':
-      await runProfile(store, rest[0], values);
-      break;
-    case 'serve': {
-      const { serve } = await import('../server/main.ts');
-      store.close();
-      await serve(Number(values.port));
-      break;
-    }
-    default:
-      fail(`未知命令：${cmd}\n\n${HELP}`);
+  } finally {
+    if (cmd !== 'serve') store.close();
   }
-} finally {
-  if (cmd !== 'serve') store.close();
 }
+
+if (cmd) run(new Store()).catch((e) => fail(e?.stack ?? String(e)));

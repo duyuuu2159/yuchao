@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { extname, join, normalize, sep } from 'node:path';
+import { extname, join } from 'node:path';
+import { getAsset, isSea } from 'node:sea';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { ConfigManager, hasNul, redactConfig } from '../core/configs.ts';
 import { diffText } from '../core/diff.ts';
@@ -9,11 +10,11 @@ import { AGENTS, isAgentKind } from '../core/agents.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
+import { checkServer, deployHistory, loadServers, recordDeploy, type ServerConfig, type ServerReport } from '../core/server.ts';
 import { defaultSourceDirs, type SourceDirs } from '../core/sources.ts';
 import { Store, type SearchOptions } from '../core/store.ts';
 import type { AgentKind, Role } from '../core/types.ts';
 
-const WEB_DIST = join(import.meta.dirname, '..', '..', 'web', 'dist');
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -44,8 +45,20 @@ export function isAllowedHost(host: string | undefined): boolean {
 
 export const WRITE_HEADER = 'x-yuchao';
 
-export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs()) {
+export interface AppOptions {
+  /** 测试时替换掉真实的服务器列表和 ssh 连接 */
+  servers?: () => ServerConfig[];
+  checkServer?: (s: ServerConfig, raw: boolean) => Promise<ServerReport>;
+}
+
+/** 服务器状态缓存 30 秒：网页切换标签时不用每次都连一遍 ssh */
+const SERVER_CACHE_MS = 30_000;
+
+export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), opts: AppOptions = {}) {
   let indexing: Promise<unknown> | null = null;
+  const servers = opts.servers ?? (() => loadServers());
+  const check = opts.checkServer ?? ((s, raw) => checkServer(s, { raw }));
+  const serverCache = new Map<string, { at: number; report: Promise<ServerReport> }>();
 
   return async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -147,6 +160,28 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs()) 
         }
       }
 
+      // 服务器面板：只读。鱼巢的密钥在服务器上只能运行状态脚本，这里也只提供查看
+      if (path === '/api/servers' && req.method === 'GET') return json(res, 200, servers());
+      if (path === '/api/server' && req.method === 'GET') {
+        const list = servers();
+        const s = list.find((x) => x.name === url.searchParams.get('name')) ?? list[0];
+        if (!s) return json(res, 404, { error: '还没有添加服务器' });
+        const key = s.name + (raw ? ':raw' : '');
+        let hit = serverCache.get(key);
+        if (!hit || url.searchParams.get('fresh') === '1' || Date.now() - hit.at > SERVER_CACHE_MS) {
+          hit = { at: Date.now(), report: check(s, raw) };
+          serverCache.set(key, hit);
+        }
+        try {
+          const report = await hit.report;
+          recordDeploy(store, s.name, report.status.releases.current);
+          return json(res, 200, { ...report, history: deployHistory(store, s.name) });
+        } catch (e: any) {
+          serverCache.delete(key);
+          return json(res, 502, { error: `连接 ${s.name} 失败：${e.message}` });
+        }
+      }
+
       if (path.startsWith('/api/')) return json(res, 404, { error: '没有这个接口' });
       return serveStatic(path, res);
     } catch (e: any) {
@@ -155,26 +190,48 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs()) 
   };
 }
 
-function serveStatic(path: string, res: ServerResponse) {
-  if (!existsSync(WEB_DIST)) {
-    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
-    return res.end('网页界面还没有构建，请先运行 npm run web:build');
+/**
+ * 网页文件的来源：从源码运行时读 web/dist；打包成单文件程序后，网页文件作为内置资源放在 exe 里。
+ * 路径按 / 切分后逐段检查，带 .. 的一律拒绝，防止读到网页目录以外的文件。
+ */
+function readWebFile(rel: string): Buffer | null {
+  if (isSea()) {
+    try {
+      return Buffer.from(getAsset('web/' + rel));
+    } catch {
+      return null;
+    }
   }
-  let file = normalize(join(WEB_DIST, decodeURIComponent(path)));
-  if (!file.startsWith(WEB_DIST + sep) && file !== WEB_DIST) {
+  const file = join(import.meta.dirname, '..', '..', 'web', 'dist', ...rel.split('/'));
+  return existsSync(file) && statSync(file).isFile() ? readFileSync(file) : null;
+}
+
+export function serveStatic(path: string, res: ServerResponse, read = readWebFile) {
+  const parts = decodeURIComponent(path).split('/').filter(Boolean);
+  // 反斜杠在 Windows 上也是路径分隔符，冒号可能是盘符，都不允许出现
+  if (parts.some((p) => p === '..' || p.includes(String.fromCharCode(92)) || p.includes(':'))) {
     res.writeHead(403);
     return res.end();
   }
+  let rel = parts.join('/') || 'index.html';
+  let body = read(rel);
   // 前端是单页应用，找不到的路径都交给 index.html
-  if (!existsSync(file) || statSync(file).isDirectory()) file = join(WEB_DIST, 'index.html');
-  res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
-  res.end(readFileSync(file));
+  if (!body) body = read((rel = 'index.html'));
+  if (!body) {
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('网页界面还没有构建，请先运行 npm run web:build');
+  }
+  res.writeHead(200, { 'content-type': MIME[extname(rel)] ?? 'application/octet-stream' });
+  res.end(body);
 }
 
 export async function serve(port: number) {
   const store = new Store();
   const server = createServer(createApp(store));
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject); // 例如端口被占用
+    server.listen(port, '127.0.0.1', resolve);
+  });
   console.log(`鱼巢已启动：http://127.0.0.1:${port}`);
   const stop = () => {
     server.close();
