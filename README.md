@@ -5,6 +5,7 @@
 - **本地优先**：只读取本机的会话文件，不修改、不上传
 - **中文全文搜索**：基于 SQLite FTS5 trigram，不需要分词词典
 - **增量索引**：只重新解析有变化的文件，日常更新只要几秒
+- **安全扫描**：找出会话里泄露的密码、API key、私钥，同一个秘密归为一组；报告和界面默认打码，不显示原文
 - **认得清来源**：区分你亲手写的话、agent 的回复、工具调用和客户端自动注入的上下文；子 agent 会话挂在父会话下面；分叉会话复制的历史在搜索结果里只出现一次
 
 ## 支持的 agent
@@ -49,7 +50,9 @@ node src/cli/main.ts serve
 | `sessions` | 按最近活动列出会话；`--all` 包含子 agent |
 | `show <id>` | 查看完整对话；`--tools` 显示工具调用 |
 | `stats` | 索引统计 |
-| `serve` | 启动本地网页界面，只监听 127.0.0.1 |
+| `scan` | 扫描泄露的密码、密钥和令牌；`--all` 包括已标记的误报，`--json` 输出 JSON |
+| `scan ignore <指纹>` | 把一条发现标记为误报（`unignore` 取消） |
+| `serve` | 启动本地网页界面，只监听 127.0.0.1，只接受本机 Host，写操作需要自定义请求头 |
 
 索引存放在 `~/.yuchao/index.db`，可用环境变量 `YUCHAO_DB` 修改。
 
@@ -68,8 +71,10 @@ npm run typecheck
 ### 目录结构
 
 ```
-src/core/      解析器、索引、搜索（不依赖界面）
+src/core/      解析器、索引、搜索、安全扫描（不依赖界面）
   parsers/     每种 agent 一个解析器，输出统一的 Session 模型
+  scan.ts      扫描规则、打码和指纹
+  audit.ts     对整个索引做扫描并汇总
 src/cli/       命令行入口
 src/server/    本地 HTTP API 和静态文件服务
 web/           React 界面
@@ -79,7 +84,7 @@ docs/          计划和开发日志
 
 ## 路线图
 
-见 [docs/PLAN.md](docs/PLAN.md)。当前完成 M1（统一会话库）。
+见 [docs/PLAN.md](docs/PLAN.md)。已完成 M1（统一会话库）和 M2（安全扫描），开发过程见 [docs/devlog.md](docs/devlog.md)。
 
 ## 许可
 
