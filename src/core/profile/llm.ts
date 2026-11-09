@@ -60,6 +60,13 @@ export class AnthropicLlm implements LlmClient {
     this.client = opts.claudeCodeConfig ? new Anthropic(readClaudeCodeConnection(opts.claudeCodeConfig)) : new Anthropic();
   }
 
+  /** 列出接口上可用的模型，用来确认中转站上 Claude 模型的名字 */
+  async listModels(): Promise<string[]> {
+    const ids: string[] = [];
+    for await (const m of this.client.models.list()) ids.push(m.id);
+    return ids;
+  }
+
   async json<T>(req: JsonRequest<T>): Promise<{ data: T; usage: Usage }> {
     const res = await this.client.beta.messages.parse({
       model: this.model,

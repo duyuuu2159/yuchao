@@ -28,6 +28,7 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao memories                  查看 Claude 已经写下的关于你的记忆
   yuchao profile stats             本地统计：活跃时间、项目、常说的话（不调用大模型）
   yuchao profile preview           生成「将要发给大模型的内容」供检查，不发送
+  yuchao profile models            列出接口上可用的 Claude 模型（支持 --claude-code-config）
   yuchao profile build --yes       调用大模型生成画像（会产生费用）
       --scope all|claude|codex     按全部会话，或只按某个 agent 的会话生成（默认 all）
       --model <模型>               默认 claude-opus-5-5

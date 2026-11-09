@@ -109,6 +109,14 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       printProfile(store, scope);
       break;
     }
+    case 'models': {
+      const llm = new AnthropicLlm({ claudeCodeConfig: flags['claude-code-config'] ? claudeCodeSettingsPath(defaultSourceDirs().claudeDir) : undefined });
+      const ids = await llm.listModels();
+      const claude = ids.filter((id) => /claude/i.test(id));
+      console.log(`${destination(flags)} 上有 ${ids.length} 个模型，其中 Claude 模型 ${claude.length} 个：`);
+      for (const id of claude) console.log(`  ${id}`);
+      break;
+    }
     case 'show':
       printProfile(store, scope);
       break;
@@ -129,6 +137,6 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       break;
     }
     default:
-      fail('用法：yuchao profile stats|preview|build|show|diff|export，详见 yuchao --help');
+      fail('用法：yuchao profile stats|preview|models|build|show|diff|export，详见 yuchao --help');
   }
 }
