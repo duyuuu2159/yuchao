@@ -1,0 +1,12 @@
+{"type":"queue-operation","operation":"enqueue","timestamp":"2026-11-01T08:00:00.000Z","sessionId":"s1","content":"帮我检查 nginx 配置"}
+{"type":"user","message":{"role":"user","content":"帮我检查 nginx 配置为什么 502"},"uuid":"u1","timestamp":"2026-11-01T08:00:01.000Z","cwd":"G:\\demo","sessionId":"s1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"","signature":"abc"}]},"uuid":"a0","timestamp":"2026-11-01T08:00:02.000Z","sessionId":"s1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"我先看一下 upstream 配置。"}]},"uuid":"a1","timestamp":"2026-11-01T08:00:03.000Z","sessionId":"s1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"nginx -t","description":"Validate nginx config"}}]},"uuid":"a2","timestamp":"2026-11-01T08:00:04.000Z","sessionId":"s1"}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"nginx: configuration file /etc/nginx/nginx.conf test is successful"}]},"uuid":"u2","timestamp":"2026-11-01T08:00:05.000Z","sessionId":"s1"}
+{"type":"user","message":{"role":"user","content":"<command-name>/model</command-name>"},"uuid":"u3","timestamp":"2026-11-01T08:00:06.000Z","sessionId":"s1"}
+{"type":"user","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"[Image: original 1920x1080]"}]},"uuid":"u4","timestamp":"2026-11-01T08:00:07.000Z","sessionId":"s1"}
+{"type":"custom-title","customTitle":"旧标题","sessionId":"s1"}
+this line is broken json {
+{"type":"custom-title","customTitle":"nginx 502 排查","sessionId":"s1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"配置没问题，502 是因为上游服务没启动，已经回滚到上一个版本。"}]},"uuid":"a3","timestamp":"2026-11-01T08:05:00.000Z","sessionId":"s1"}

@@ -1,0 +1,33 @@
+{
+  "name": "yuchao",
+  "version": "0.1.0",
+  "description": "鱼巢 AgentNest：把多个 AI agent 的本地会话管在一起的工作台",
+  "type": "module",
+  "license": "MIT",
+  "author": "杜瑜",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "yuchao": "src/cli/main.ts"
+  },
+  "scripts": {
+    "yuchao": "node src/cli/main.ts",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p . && tsc -p web",
+    "web:dev": "vite web",
+    "web:build": "vite build web"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}

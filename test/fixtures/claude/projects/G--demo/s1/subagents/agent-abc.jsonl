@@ -1,0 +1,2 @@
+{"type":"user","isSidechain":true,"message":{"role":"user","content":"搜索所有 location 块"},"uuid":"x1","timestamp":"2026-11-01T08:01:00.000Z","cwd":"G:\\demo","sessionId":"s1","agentId":"abc"}
+{"type":"assistant","isSidechain":true,"message":{"role":"assistant","content":[{"type":"text","text":"找到 3 个 location 块。"}]},"uuid":"x2","timestamp":"2026-11-01T08:01:30.000Z","sessionId":"s1","agentId":"abc"}
