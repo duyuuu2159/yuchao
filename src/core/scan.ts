@@ -56,6 +56,10 @@ export function looksLikeSecret(v: string): boolean {
   if (/^(.)\1+$/.test(v)) return false;
   if (/^[a-z_]+\(|\)$/.test(v)) return false; // 函数调用，例如 input()
   if (/[\u4e00-\u9fff]/.test(v)) return false; // 含中文的是说明文字，不是密码
+  // 含全角标点等非 ASCII 字符的也是说明文字，例如「（base64url 字符」
+  if ([...v].some((c) => c.charCodeAt(0) > 126)) return false;
+  if (v.startsWith('@')) return false; // user:password@host 这类模板里截到的是主机名
+  if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(v)) return false; // 常量名，例如 GITHUB_CLIENT_SECRET
   if (/^[a-z._-]+$/.test(v)) return false; // 全小写的单词或句子片段，例如 non-interactively.
   if (/^(?:[a-z]+[._-])*[a-z]+$/i.test(v) && entropy(v) < 3.2) return false; // 普通单词或变量名
   const mixed = /[a-z]/i.test(v) && /\d/.test(v);
@@ -116,6 +120,14 @@ export const RULES: Rule[] = [
     name: '链接里的账号密码',
     severity: 'high',
     pattern: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@'"]+:([^\s@/'"]+)@[^\s'"]+/gi,
+    accept: looksLikeSecret,
+  },
+  {
+    // 代码里成组写出的地址、用户名、密码，例如 ssh.connect('203.0.113.7', 'root', 'Tq8v...')
+    id: 'server_credential',
+    name: '服务器登录凭据',
+    severity: 'high',
+    pattern: new RegExp(String.raw`['"]\d{1,3}(?:\.\d{1,3}){3}['"]\s*,\s*['"][\w.-]{1,32}['"]\s*,\s*['"]([^'"\s]{6,64})['"]`, 'g'),
     accept: looksLikeSecret,
   },
   {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { entropy, fingerprint, looksLikeSecret, mask, scanText } from '../src/core/scan.ts';
+import { entropy, fingerprint, looksLikeSecret, mask, redact, scanText } from '../src/core/scan.ts';
 
 // 假密钥在运行时拼接，避免源码里出现「长得像真密钥」的字符串被 GitHub 推送保护拦截
 const FAKE_GH = 'gh' + 'p_' + 'aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5b';
@@ -121,4 +121,19 @@ test('信息熵和疑似秘密判断', () => {
   assert.equal(looksLikeSecret('password'), false);
   assert.equal(looksLikeSecret('hello_world'), false);
   assert.equal(looksLikeSecret(PW), true);
+});
+
+test('代码里成组写出的 IP、用户名、密码识别为服务器凭据，上下文里不留原文', () => {
+  const pw = 'hX7k' + 'Pq2Lm9';
+  const text = `client.connect('203.0.113.7', 'root', '${pw}')\n# 生成本地强密码（base64url 字符，无 shell 特殊字符）`;
+  const ms = scanText(text);
+  assert.deepEqual(ms.map((m) => m.ruleId), ['server_credential']);
+  assert.ok(!ms[0].context.includes(pw));
+  assert.ok(!redact(text).includes(pw));
+});
+
+test('说明文字、连接串模板和常量名不算秘密', () => {
+  assert.deepEqual(scanText('密码（base64url 字符，无特殊字符）'), []);
+  assert.deepEqual(scanText('DATABASE_URL=postgresql://user:password@host:5432/name'), []);
+  assert.deepEqual(scanText('"client_secret": GITHUB_CLIENT_SECRET_VALUE,'), []);
 });
