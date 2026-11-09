@@ -1,22 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { api, type Agent, type IndexResult, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
+import { when } from './format.ts';
+import { ScanView } from './ScanView.tsx';
 
 const AGENT_LABEL: Record<Agent, string> = { claude: 'Claude', codex: 'Codex' };
-
-function when(ts: string | null): string {
-  if (!ts) return '—';
-  const d = new Date(ts);
-  const now = new Date();
-  const sameYear = d.getFullYear() === now.getFullYear();
-  return d.toLocaleString('zh-CN', {
-    year: sameYear ? undefined : 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
 
 /** 把命中的关键词包上 <mark> */
 function highlight(text: string, terms: string[]): ReactNode {
@@ -36,6 +23,9 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export function App() {
+  const [view, setView] = useState<'sessions' | 'scan'>('sessions');
+  // 默认打码显示，截图和演示时不会把密码露出去
+  const [raw, setRaw] = useState(false);
   const [agent, setAgent] = useState<Agent | undefined>();
   const [query, setQuery] = useState('');
   const [withTools, setWithTools] = useState(false);
@@ -52,20 +42,20 @@ export function App() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    api.sessions(agent).then(setSessions, (e) => setError(e.message));
-  }, [agent, reloadKey]);
+    api.sessions(agent, raw).then(setSessions, (e) => setError(e.message));
+  }, [agent, raw, reloadKey]);
 
   useEffect(() => {
     if (!q) return setHits(null);
     let stale = false;
-    api.search(q, agent, withTools).then(
+    api.search(q, agent, withTools, raw).then(
       (r) => !stale && setHits(r),
       (e) => !stale && setError(e.message),
     );
     return () => {
       stale = true;
     };
-  }, [q, agent, withTools, reloadKey]);
+  }, [q, agent, withTools, raw, reloadKey]);
 
   async function reindex() {
     setIndexing(true);
@@ -81,6 +71,7 @@ export function App() {
   }
 
   function open(id: string, seq: number | null = null) {
+    setView('sessions');
     setOpenId(id);
     setFocusSeq(seq);
   }
@@ -92,12 +83,20 @@ export function App() {
           <span className="logo">鱼巢</span>
           <span className="sub">AgentNest</span>
         </div>
+        <nav className="tabs" aria-label="页面">
+          <button className={view === 'sessions' ? 'on' : ''} onClick={() => setView('sessions')}>
+            会话
+          </button>
+          <button className={view === 'scan' ? 'on' : ''} onClick={() => setView('scan')}>
+            安全扫描
+          </button>
+        </nav>
         <input
           className="search"
           type="search"
           placeholder="搜索所有 agent 的对话，多个词用空格分开"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => (setQuery(e.target.value), setView('sessions'))}
           autoFocus
         />
         <div className="seg" role="group" aria-label="按 agent 筛选">
@@ -110,6 +109,10 @@ export function App() {
         <label className="check">
           <input type="checkbox" checked={withTools} onChange={(e) => setWithTools(e.target.checked)} />
           含工具调用
+        </label>
+        <label className="check" title="默认把密码、密钥打码显示，方便截图和演示">
+          <input type="checkbox" checked={raw} onChange={(e) => setRaw(e.target.checked)} />
+          显示原文
         </label>
         <button className="primary" onClick={reindex} disabled={indexing}>
           {indexing ? '索引中…' : '更新索引'}
@@ -127,64 +130,70 @@ export function App() {
         </div>
       )}
 
-      <div className="body">
-        <aside className="list">
-          {hits ? (
-            <>
-              <div className="list-head">找到 {hits.length >= 100 ? '100+' : hits.length} 条</div>
-              {hits.length === 0 && <div className="empty">没有结果。两个字以下的词会逐条扫描，可以试试换个说法。</div>}
-              {hits.map((h) => (
-                <button key={h.messageId} className={'item' + (openId === h.sessionId && focusSeq === h.seq ? ' active' : '')} onClick={() => open(h.sessionId, h.seq)}>
-                  <div className="item-top">
-                    <span className={'badge ' + h.agent}>{AGENT_LABEL[h.agent]}</span>
-                    <span className="title">{h.title ?? '（无标题）'}</span>
-                  </div>
-                  <div className="snippet">
-                    <span className="role">{h.role === 'user' ? '你' : h.role === 'assistant' ? 'agent' : h.toolName ?? h.role}</span>
-                    {highlight(h.snippet, terms)}
-                  </div>
-                  <div className="meta">
-                    {when(h.ts)}
-                    {h.alsoIn > 0 && ` · 另有 ${h.alsoIn} 个分叉会话`}
-                  </div>
-                </button>
-              ))}
-            </>
-          ) : (
-            <>
-              <div className="list-head">{sessions.length} 个会话</div>
-              {sessions.length === 0 && <div className="empty">还没有数据，点右上角「更新索引」。</div>}
-              {sessions.map((s) => (
-                <button key={s.id} className={'item' + (openId === s.id ? ' active' : '')} onClick={() => open(s.id)}>
-                  <div className="item-top">
-                    <span className={'badge ' + s.agent}>{AGENT_LABEL[s.agent]}</span>
-                    <span className="title">{s.title ?? '（无标题）'}</span>
-                  </div>
-                  <div className="meta">
-                    {when(s.updatedAt)} · {s.messageCount} 条{s.archived && ' · 已归档'}
-                  </div>
-                </button>
-              ))}
-            </>
-          )}
-        </aside>
-
+      {view === 'scan' ? (
         <main className="detail">
-          {openId ? (
-            <SessionView id={openId} focusSeq={focusSeq} terms={terms} onOpen={open} />
-          ) : (
-            <div className="placeholder">
-              <p>从左边选一个会话，或者在上面搜索。</p>
-              <p className="hint">鱼巢只读取你本机的会话文件，不会修改它们，也不会上传任何数据。</p>
-            </div>
-          )}
+          <ScanView key={reloadKey} onOpen={open} />
         </main>
-      </div>
+      ) : (
+        <div className="body">
+          <aside className="list">
+            {hits ? (
+              <>
+                <div className="list-head">找到 {hits.length >= 100 ? '100+' : hits.length} 条</div>
+                {hits.length === 0 && <div className="empty">没有结果。两个字以下的词会逐条扫描，可以试试换个说法。</div>}
+                {hits.map((h) => (
+                  <button key={h.messageId} className={'item' + (openId === h.sessionId && focusSeq === h.seq ? ' active' : '')} onClick={() => open(h.sessionId, h.seq)}>
+                    <div className="item-top">
+                      <span className={'badge ' + h.agent}>{AGENT_LABEL[h.agent]}</span>
+                      <span className="title">{h.title ?? '（无标题）'}</span>
+                    </div>
+                    <div className="snippet">
+                      <span className="role">{h.role === 'user' ? '你' : h.role === 'assistant' ? 'agent' : h.toolName ?? h.role}</span>
+                      {highlight(h.snippet, terms)}
+                    </div>
+                    <div className="meta">
+                      {when(h.ts)}
+                      {h.alsoIn > 0 && ` · 另有 ${h.alsoIn} 个分叉会话`}
+                    </div>
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <div className="list-head">{sessions.length} 个会话</div>
+                {sessions.length === 0 && <div className="empty">还没有数据，点右上角「更新索引」。</div>}
+                {sessions.map((s) => (
+                  <button key={s.id} className={'item' + (openId === s.id ? ' active' : '')} onClick={() => open(s.id)}>
+                    <div className="item-top">
+                      <span className={'badge ' + s.agent}>{AGENT_LABEL[s.agent]}</span>
+                      <span className="title">{s.title ?? '（无标题）'}</span>
+                    </div>
+                    <div className="meta">
+                      {when(s.updatedAt)} · {s.messageCount} 条{s.archived && ' · 已归档'}
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+          </aside>
+
+          <main className="detail">
+            {openId ? (
+              <SessionView id={openId} raw={raw} focusSeq={focusSeq} terms={terms} onOpen={open} />
+            ) : (
+              <div className="placeholder">
+                <p>从左边选一个会话，或者在上面搜索。</p>
+                <p className="hint">鱼巢只读取你本机的会话文件，不会修改它们，也不会上传任何数据。</p>
+              </div>
+            )}
+          </main>
+        </div>
+      )}
     </div>
   );
 }
 
-function SessionView({ id, focusSeq, terms, onOpen }: { id: string; focusSeq: number | null; terms: string[]; onOpen: (id: string) => void }) {
+function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: boolean; focusSeq: number | null; terms: string[]; onOpen: (id: string) => void }) {
   const [s, setS] = useState<SessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTools, setShowTools] = useState(false);
@@ -193,8 +202,8 @@ function SessionView({ id, focusSeq, terms, onOpen }: { id: string; focusSeq: nu
   useEffect(() => {
     setS(null);
     setError(null);
-    api.session(id).then(setS, (e) => setError(e.message));
-  }, [id]);
+    api.session(id, raw).then(setS, (e) => setError(e.message));
+  }, [id, raw]);
 
   // 从搜索结果点进来时，命中的是工具调用就自动展开工具
   useEffect(() => {

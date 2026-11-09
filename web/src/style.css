@@ -53,6 +53,7 @@ button {
 
 .top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
@@ -76,7 +77,7 @@ button {
 }
 .search {
   flex: 1;
-  min-width: 0;
+  min-width: 180px;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -342,4 +343,154 @@ pre {
   color: var(--text);
   max-height: 360px;
   overflow: auto;
+}
+
+/* 页签 */
+.tabs {
+  display: flex;
+  gap: 2px;
+}
+.tabs button {
+  border: 0;
+  background: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.tabs button.on {
+  background: var(--user-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 安全扫描 */
+.scan {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px 0 40px;
+}
+.scan-summary {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  min-width: 120px;
+}
+.stat b {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+.stat b.danger {
+  color: var(--err);
+}
+.stat span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.stat.muted {
+  flex: 1;
+  gap: 6px;
+}
+.scan .hint {
+  color: var(--muted);
+  margin: 12px 0 16px;
+}
+.finding {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--muted);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.finding.high {
+  border-left-color: var(--err);
+}
+.finding.medium {
+  border-left-color: var(--mark);
+}
+.finding.ignored {
+  opacity: 0.55;
+}
+.finding header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.finding header .meta {
+  flex: 1;
+  margin: 0;
+}
+.finding code {
+  font-family: ui-monospace, Consolas, monospace;
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.sev {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+}
+.sev.high {
+  color: var(--err);
+}
+.sev.medium {
+  color: var(--muted);
+}
+.advice {
+  margin: 6px 0 8px;
+  font-size: 13px;
+}
+.finding ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.occ {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  padding: 8px 0;
+}
+.occ:hover {
+  background: var(--bg);
+}
+.where {
+  font-size: 11px;
+  color: var(--muted);
+}
+.occ-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.occ .meta {
+  margin: 0;
+}
+.ctx {
+  grid-column: 1 / -1;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
 }
