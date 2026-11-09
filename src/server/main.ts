@@ -2,6 +2,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
+import { readClaudeMemories } from '../core/memories.ts';
+import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
+import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
 import { defaultSourceDirs } from '../core/sources.ts';
 import { Store, type SearchOptions } from '../core/store.ts';
@@ -95,6 +98,24 @@ export function createApp(store: Store) {
       if (ignore && (req.method === 'PUT' || req.method === 'DELETE')) {
         (req.method === 'PUT' ? ignoreFinding : unignoreFinding)(store, ignore[1]);
         return json(res, 200, { ok: true });
+      }
+
+      if (path === '/api/profile' && req.method === 'GET') {
+        // 只读：生成画像会产生费用，必须在命令行里明确执行 yuchao profile build --yes
+        const scopes = ['all', 'claude', 'codex'] as const;
+        return json(res, 200, {
+          stats: activityStats(store),
+          memories: readClaudeMemories(defaultSourceDirs().claudeDir).map(({ path: _, ...m }) => m),
+          latest: Object.fromEntries(scopes.map((sc) => [sc, latestProfile(store, sc)])),
+          versions: Object.fromEntries(scopes.map((sc) => [sc, profileHistory(store, sc).length])),
+        });
+      }
+
+      if (path === '/api/profile/diff' && req.method === 'GET') {
+        const sc = url.searchParams.get('scope');
+        const scope = sc === 'claude' || sc === 'codex' ? sc : 'all';
+        const [newer, older] = profileHistory(store, scope);
+        return json(res, 200, older ? { from: older.createdAt, to: newer.createdAt, ...diffProfiles(older.profile, newer.profile) } : null);
       }
 
       if (path.startsWith('/api/')) return json(res, 404, { error: '没有这个接口' });

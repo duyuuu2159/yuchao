@@ -106,3 +106,60 @@ export const api = {
   scan: (all?: boolean) => get<AuditResult>(`/api/scan?${qs({ all: flag(all) })}`),
   ignore: (fingerprint: string, ignored: boolean) => get<{ ok: true }>(`/api/scan/ignore/${fingerprint}`, { method: ignored ? 'PUT' : 'DELETE' }),
 };
+
+export interface ActivityStats {
+  sessions: Record<Agent, number>;
+  userMessages: number;
+  activeDays: number;
+  firstDay: string | null;
+  lastDay: string | null;
+  byHour: number[];
+  byWeekday: number[];
+  topProjects: { name: string; sessions: number }[];
+  topTools: { name: string; calls: number }[];
+  topPhrases: { text: string; count: number }[];
+  medianLength: number;
+}
+
+export interface AgentMemory {
+  agent: 'claude';
+  project: string;
+  name: string;
+  description: string;
+  type: 'user' | 'feedback' | 'project' | 'reference' | 'other';
+  body: string;
+  originSessionId: string | null;
+  modified: string | null;
+}
+
+export type Scope = 'all' | Agent;
+
+export interface ProfileVersion {
+  id: number;
+  scope: Scope;
+  createdAt: string;
+  profile: {
+    headline: string;
+    sections: { title: string; claims: { text: string; evidence: { sessionId: string; title: string; agent: Agent }[] }[] }[];
+  };
+  meta: { model: string; sessions: number; droppedCitations: number; droppedClaims: number; notesFailed: unknown[] };
+}
+
+export interface ProfileOverview {
+  stats: ActivityStats;
+  memories: AgentMemory[];
+  latest: Record<Scope, ProfileVersion | null>;
+  versions: Record<Scope, number>;
+}
+
+export interface ProfileDiff {
+  from: string;
+  to: string;
+  added: string[];
+  removed: string[];
+}
+
+export const profileApi = {
+  overview: () => get<ProfileOverview>('/api/profile'),
+  diff: (scope: Scope) => get<ProfileDiff | null>(`/api/profile/diff?scope=${scope}`),
+};

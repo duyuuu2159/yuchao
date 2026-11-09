@@ -69,3 +69,13 @@ test('会话、标题和搜索结果默认打码，raw=1 才返回原文', async
     srv.close();
   }
 });
+
+test('画像接口只读：返回统计、记忆和最新画像，不提供生成接口', async () => {
+  const r = await call('GET', '/api/profile');
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body.stats.byHour));
+  assert.ok(Array.isArray(r.body.memories));
+  assert.deepEqual(r.body.latest, { all: null, claude: null, codex: null });
+  assert.equal((await call('POST', '/api/profile/build', { 'x-yuchao': '1' })).status, 404);
+  assert.equal((await call('GET', '/api/profile/diff?scope=claude')).body, null);
+});
