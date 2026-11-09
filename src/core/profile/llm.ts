@@ -30,6 +30,9 @@ export interface AnthropicOptions {
   model?: string;
   /** 读取 ~/.claude/settings.json 里 Claude Code 已配置的地址和令牌（例如中转站） */
   claudeCodeConfig?: string;
+  /** 直接指定接口地址和 key（例如运行时由用户输入），优先于环境变量 */
+  baseURL?: string;
+  apiKey?: string;
   /** 模型拒答时由服务端换模型重试。中转站可能不支持这个参数，可以关掉 */
   fallbacks?: boolean;
 }
@@ -48,6 +51,16 @@ export function claudeCodeSettingsPath(claudeDir: string): string {
   return join(claudeDir, 'settings.json');
 }
 
+/**
+ * 从接口的模型列表里挑一个：优先默认模型，其次版本最新的 Opus，再次 Sonnet。
+ * 中转站上的模型名常带前缀或后缀，所以按名字里的关键词匹配。
+ */
+export function pickModel(ids: string[]): string | null {
+  if (ids.includes(DEFAULT_MODEL)) return DEFAULT_MODEL;
+  const newest = (re: RegExp) => ids.filter((id) => re.test(id)).sort((a, b) => b.localeCompare(a, 'en', { numeric: true }))[0];
+  return newest(/claude.*opus|opus.*claude/i) ?? newest(/claude.*sonnet|sonnet.*claude/i) ?? newest(/claude/i) ?? null;
+}
+
 export class AnthropicLlm implements LlmClient {
   readonly model: string;
   private readonly client: Anthropic;
@@ -57,7 +70,9 @@ export class AnthropicLlm implements LlmClient {
     this.model = opts.model ?? DEFAULT_MODEL;
     this.fallbacks = opts.fallbacks ?? true;
     // 不传参数时，SDK 自己从环境变量读取 ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_BASE_URL
-    this.client = opts.claudeCodeConfig ? new Anthropic(readClaudeCodeConnection(opts.claudeCodeConfig)) : new Anthropic();
+    if (opts.apiKey || opts.baseURL) this.client = new Anthropic({ apiKey: opts.apiKey, baseURL: opts.baseURL });
+    else if (opts.claudeCodeConfig) this.client = new Anthropic(readClaudeCodeConnection(opts.claudeCodeConfig));
+    else this.client = new Anthropic();
   }
 
   /** 列出接口上可用的模型，用来确认中转站上 Claude 模型的名字 */
