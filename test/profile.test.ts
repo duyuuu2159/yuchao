@@ -8,6 +8,7 @@ import { readClaudeMemories, parseFrontmatter } from '../src/core/memories.ts';
 import { activityStats, sessionEvidence } from '../src/core/profile/evidence.ts';
 import {
   buildProfile,
+  ProfileBuildError,
   diffProfiles,
   exportMarkdown,
   latestProfile,
@@ -16,7 +17,7 @@ import {
   SessionNoteSchema,
   type ProfileDoc,
 } from '../src/core/profile/build.ts';
-import type { JsonRequest, LlmClient } from '../src/core/profile/llm.ts';
+import { pickModel, type JsonRequest, type LlmClient } from '../src/core/profile/llm.ts';
 
 const FIX = join(import.meta.dirname, 'fixtures');
 const PW = 'Tq8vLm2Xz9';
@@ -197,4 +198,31 @@ test('版本对比和导出', () => {
   assert.match(md, /^## 关于我/);
   assert.match(md, /- 新结论/);
   assert.ok(!md.includes('S1'));
+});
+
+test('接口一开始就连续失败（例如余额不足）时立即停止，不把所有会话都试一遍', async () => {
+  const { store } = await setup((root) => {
+    for (let i = 0; i < 10; i++) {
+      const line = JSON.stringify({ type: 'user', message: { role: 'user', content: `第 ${i} 个会话` }, timestamp: `2026-11-05T00:0${i}:00.000Z` });
+      writeFileSync(join(root, `claude/projects/G--demo/extra${i}.jsonl`), line + '\n');
+    }
+  });
+  let calls = 0;
+  const broken: LlmClient = {
+    model: 'broken',
+    async json() {
+      calls++;
+      throw new Error('429 Credits不足，请充值');
+    },
+  };
+  await assert.rejects(buildProfile(store, broken), (e: Error) => e instanceof ProfileBuildError && /Credits不足/.test(e.message));
+  assert.ok(calls <= 4, `只应尝试前几个会话，实际尝试了 ${calls} 次`);
+  assert.equal(profileHistory(store, 'all').length, 0);
+});
+
+test('自动挑选模型：优先默认模型，其次最新的 Opus，再次 Sonnet', () => {
+  assert.equal(pickModel(['gpt-image-2', 'claude-opus-5-5', 'claude-opus-5']), 'claude-opus-5-5');
+  assert.equal(pickModel(['claude-opus-4-8', 'claude-opus-4-10', 'claude-sonnet-5-5']), 'claude-opus-4-10');
+  assert.equal(pickModel(['[特价]claude-sonnet-5-5', 'gpt-6']), '[特价]claude-sonnet-5-5');
+  assert.equal(pickModel(['gpt-image-2', 'gpt-6']), null);
 });

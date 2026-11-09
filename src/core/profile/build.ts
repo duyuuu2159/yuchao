@@ -196,6 +196,18 @@ export function resolveProfile(raw: RawProfile, ids: Map<string, SessionEvidence
   return { profile: { headline: raw.headline, sections }, droppedCitations, droppedClaims };
 }
 
+/** 前几个会话全部失败时立即停止 */
+export const ABORT_AFTER_FAILURES = 3;
+
+/** 接口层面的失败（余额、权限、模型名等），一个会话都没总结成功 */
+export class ProfileBuildError extends Error {
+  readonly firstError: string;
+  constructor(firstError: string) {
+    super(`没有一个会话总结成功，已停止。接口返回：${firstError}`);
+    this.firstError = firstError;
+  }
+}
+
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
@@ -252,9 +264,12 @@ export async function buildProfile(store: Store, llm: LlmClient, opts: BuildOpti
   const putCached = store.db.prepare('INSERT OR REPLACE INTO profile_notes(session_id, hash, model, prompt_version, json, created_at) VALUES (?, ?, ?, ?, ?, ?)');
 
   let done = 0;
+  // 一开始就连续失败（余额不足、key 无效、接口不支持），继续试下去只会白白等待
+  const aborted = () => meta.notesGenerated === 0 && meta.notesFailed.length >= ABORT_AFTER_FAILURES;
   const notes = await mapLimit(evidence, opts.concurrency ?? 4, async (ev) => {
     const cached = getCached.get(ev.sessionId, ev.hash, llm.model, PROMPT_VERSION) as { json: string } | undefined;
     let note: SessionNote | null = null;
+    if (!cached && aborted()) return null;
     if (cached) {
       note = JSON.parse(cached.json);
       meta.notesCached++;
@@ -277,7 +292,7 @@ export async function buildProfile(store: Store, llm: LlmClient, opts: BuildOpti
   });
 
   const items = notes.filter((n): n is { ev: SessionEvidence; note: SessionNote } => n !== null);
-  if (!items.length) throw new Error(`所有会话都总结失败，第一个错误：${meta.notesFailed[0]?.error}`);
+  if (aborted() || !items.length) throw new ProfileBuildError(meta.notesFailed[0]?.error ?? '未知错误');
 
   const { text, ids } = renderNotes(items);
   const res = await llm.json({ system: PROFILE_SYSTEM, user: text, schema: ProfileSchema, effort: 'high', maxTokens: 16000 });
