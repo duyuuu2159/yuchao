@@ -95,6 +95,7 @@ test('证据只包含用户亲手写的话，带消息序号，密码已打码',
   assert.ok(!s1.text.includes('上游服务没启动'), 'agent 的回复不应发送');
   assert.ok(!s1.text.includes('nginx -t'), '工具调用不应发送');
   assert.ok(!s1.text.includes(PW));
+  assert.ok(!s1.text.includes('203.0.113.7') && s1.text.includes('[IP]'), 'IP 地址也要隐藏');
   assert.ok(!s1.text.includes('<command-name>'), '注入的上下文不应发送');
   assert.deepEqual(sessionEvidence(store, { agent: 'codex' }).map((e) => e.sessionId), ['codex:c1']);
 });

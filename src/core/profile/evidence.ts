@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
-import { redact } from '../scan.ts';
+import { IPV4, redact } from '../scan.ts';
 import type { Store } from '../store.ts';
 import type { AgentKind } from '../types.ts';
 
@@ -134,6 +134,11 @@ export function activityStats(store: Store): ActivityStats {
   };
 }
 
+/** 发给模型前的脱敏：密码、密钥打码，IP 地址也隐藏（单独不算秘密，但没必要交给第三方） */
+export function sanitize(text: string): string {
+  return redact(text).replace(IPV4, '[IP]');
+}
+
 function clipMessage(text: string): string {
   const chars = [...text];
   return chars.length > MAX_MESSAGE_CHARS ? chars.slice(0, MAX_MESSAGE_CHARS).join('') + `…[本条还有 ${chars.length - MAX_MESSAGE_CHARS} 字未发送]` : text;
@@ -154,7 +159,7 @@ export function sessionEvidence(store: Store, opts: { agent?: AgentKind } = {}):
     const rows = bySession.get(s.id);
     if (!rows?.length) continue;
 
-    const lines = rows.map((r) => ({ seq: r.seq, line: `[#${r.seq}] ${clipMessage(redact(r.text)).replace(/\s*\n\s*/g, ' ⏎ ')}` }));
+    const lines = rows.map((r) => ({ seq: r.seq, line: `[#${r.seq}] ${clipMessage(sanitize(r.text)).replace(/\s*\n\s*/g, ' ⏎ ')}` }));
     let kept = lines;
     let omitted = 0;
     const total = (ls: typeof lines) => ls.reduce((n, l) => n + l.line.length + 1, 0);
@@ -173,7 +178,7 @@ export function sessionEvidence(store: Store, opts: { agent?: AgentKind } = {}):
       kept = [...head, { seq: -1, line: `…中间省略 ${omitted} 条消息…` }, ...tail];
     }
 
-    const title = redact(s.title ?? '（无标题）');
+    const title = sanitize(s.title ?? '（无标题）');
     const project = projectName(s.cwd);
     const header = `${s.agent === 'claude' ? 'Claude Code' : 'Codex'}｜${title}｜项目 ${project ?? '未知'}｜${s.started_at ? localDay(s.started_at) : '日期未知'}`;
     const text = header + '\n' + kept.map((l) => l.line).join('\n');

@@ -135,7 +135,7 @@ export const RULES: Rule[] = [
 ];
 
 /** IPv4 地址，排除 0.0.0.0、127.x、版本号这类 */
-const IPV4 = /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g;
+export const IPV4 = /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g;
 
 function hasServerAddressNear(text: string, at: number, radius = 120): boolean {
   const near = text.slice(Math.max(0, at - radius), at + radius);
