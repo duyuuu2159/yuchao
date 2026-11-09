@@ -690,3 +690,6 @@ pre {
   color: var(--muted);
   text-decoration: line-through;
 }
+.evidence .chip.more {
+  color: var(--accent);
+}

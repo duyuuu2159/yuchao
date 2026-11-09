@@ -209,20 +209,36 @@ function ProfileCard({ v, onOpen }: { v: ProfileVersion; onOpen: (sessionId: str
           <h3>{s.title}</h3>
           <ul>
             {s.claims.map((c) => (
-              <li key={c.text}>
-                {c.text}
-                <span className="evidence">
-                  {c.evidence.map((e) => (
-                    <button key={e.sessionId} className="chip" title={e.title} onClick={() => onOpen(e.sessionId)}>
-                      {e.agent === 'claude' ? 'Claude' : 'Codex'} · {e.title.length > 14 ? e.title.slice(0, 14) + '…' : e.title}
-                    </button>
-                  ))}
-                </span>
-              </li>
+              <Claim key={c.text} claim={c} onOpen={onOpen} />
             ))}
           </ul>
         </div>
       ))}
     </article>
+  );
+}
+
+type ClaimData = ProfileVersion['profile']['sections'][number]['claims'][number];
+
+/** 出处多时默认只显示前几个，避免一片标签盖过结论本身 */
+function Claim({ claim, onOpen }: { claim: ClaimData; onOpen: (sessionId: string) => void }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? claim.evidence : claim.evidence.slice(0, 3);
+  return (
+    <li>
+      {claim.text}
+      <span className="evidence">
+        {shown.map((e) => (
+          <button key={e.sessionId} className="chip" title={e.title} onClick={() => onOpen(e.sessionId)}>
+            {e.agent === 'claude' ? 'Claude' : 'Codex'} · {e.title.length > 14 ? e.title.slice(0, 14) + '…' : e.title}
+          </button>
+        ))}
+        {claim.evidence.length > shown.length && (
+          <button className="chip more" onClick={() => setAll(true)} title="显示全部出处">
+            +{claim.evidence.length - shown.length}
+          </button>
+        )}
+      </span>
+    </li>
   );
 }
