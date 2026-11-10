@@ -10,6 +10,7 @@ import { AGENTS, isAgentKind } from '../core/agents.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
+import { buildHandoff, latestWorkSession } from '../core/handoff.ts';
 import { checkServer, deployHistory, loadServers, recordDeploy, type ServerConfig, type ServerReport } from '../core/server.ts';
 import { defaultSourceDirs, type SourceDirs } from '../core/sources.ts';
 import { Store, type SearchOptions } from '../core/store.ts';
@@ -81,6 +82,13 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
           offset: Number(url.searchParams.get('offset') ?? 0),
         });
         return json(res, 200, rows.map((r) => ({ ...r, title: safe(r.title) })));
+      }
+
+      // 接力：只读，本地生成交接说明
+      if (path.startsWith('/api/handoff/') && req.method === 'GET') {
+        const ref = decodeURIComponent(path.slice('/api/handoff/'.length));
+        const h = buildHandoff(store, ref === 'latest' ? (latestWorkSession(store) ?? '') : ref, { to: url.searchParams.get('to') ?? undefined, raw });
+        return h ? json(res, 200, h) : json(res, 404, { error: '找不到这个会话' });
       }
 
       if (path.startsWith('/api/sessions/') && req.method === 'GET') {

@@ -51,6 +51,7 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao config show <版本号>      查看某个版本的内容（已打码）
   yuchao config restore <版本号> --yes  回滚到某个版本，会先保存当前内容；损坏的版本需要 --force
   yuchao config track|untrack <路径>    增加或取消跟踪的配置文件
+  yuchao handoff <会话id> [--to codex]  接力：把会话整理成交接说明，粘贴给另一个 agent 接着做（本地生成，已打码）
   yuchao server [名字]             服务器面板：服务、版本、磁盘、最近的异常（只读，--json 输出 JSON）
   yuchao server add <名字> <用户名@主机[:端口]> [--url https://域名]  添加服务器
   yuchao server setup [名字]       生成只读专用密钥，打印服务器上需要做的配置
@@ -77,6 +78,7 @@ const { values, positionals } = parseArgs({
     'key-file': { type: 'string' },
     provider: { type: 'string' },
     url: { type: 'string' },
+    to: { type: 'string' },
     yes: { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
@@ -190,7 +192,20 @@ async function run(store: Store) {
       case 'config':
         runConfig(store, rest, values);
         break;
-      case 'server': {
+      case 'handoff': {
+      const { buildHandoff } = await import('../core/handoff.ts');
+      if (values.to && !isAgentKind(values.to)) fail(`未知的 agent：${values.to}（可选 ${AGENT_KINDS.join('、')}）`);
+      const { latestWorkSession } = await import('../core/handoff.ts');
+      const id = rest[0] === 'latest' ? latestWorkSession(store) : rest[0];
+      if (!id) fail('用法：yuchao handoff <会话id|latest> [--to codex]（会话 id 可以用 yuchao sessions 查看）');
+      const h = buildHandoff(store, id, { to: values.to });
+      if (!h) fail(`找不到会话 ${id}`);
+      console.log(h.markdown);
+      console.error(dim(`
+约 ${h.chars} 字、${h.tokens} token。可以重定向到文件，或者用 | clip 复制到剪贴板。`));
+      break;
+    }
+    case 'server': {
         const { runServer } = await import('./server.ts');
         await runServer(store, rest, values);
         break;
