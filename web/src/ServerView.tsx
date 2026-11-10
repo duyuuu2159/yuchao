@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { serverApi, type ServerConfig, type ServerReport } from './api.ts';
 import { when } from './format.ts';
+import { Cmd, Empty, ErrorPage, LoadingPage, PageHeader, Skeleton } from './ui.tsx';
 
 const gb = (n: number) => (n / 1024 ** 3).toFixed(1) + ' GB';
 const uptime = (s: number) => (s >= 86400 ? `${Math.floor(s / 86400)} 天` : `${Math.floor(s / 3600)} 小时`);
@@ -18,20 +19,17 @@ export function ServerView({ raw }: { raw: boolean }) {
     }, (e) => setError(e.message));
   }, []);
 
-  if (error) return <div className="placeholder err">{error}</div>;
-  if (!servers) return <div className="placeholder">加载中…</div>;
+  if (error) return <ErrorPage title="服务器" error={error} />;
+  if (!servers) return <LoadingPage title="服务器" />;
 
   return (
-    <div className="configs">
-      <h2>服务器</h2>
-      <p className="hint">
-        鱼巢用一把专用密钥登录服务器，这把密钥在服务器上被锁定为只能运行一个只读的状态脚本：不能执行其他命令，也不能转发端口。所以这里只能看，不能改。日志里的密码和访客 IP 默认打码。
-      </p>
+    <div className="page configs server-page">
+      <PageHeader title="服务器" desc="鱼巢用一把专用密钥登录服务器，这把密钥在服务器上被锁定为只能运行一个只读的状态脚本：不能执行其他命令，也不能转发端口。所以这里只能看，不能改。日志里的密码和访客 IP 默认打码。" />
       {servers.length === 0 ? (
         <div className="empty">
           还没有添加服务器。在命令行里运行：
-          <pre>node src/cli/main.ts server add 名字 root@服务器IP --url https://你的域名</pre>
-          <pre>node src/cli/main.ts server setup</pre>
+          <Cmd>yuchao server add 名字 root@服务器IP --url https://你的域名</Cmd>
+          <Cmd>yuchao server setup</Cmd>
           然后按提示在服务器上安装状态脚本和密钥。
         </div>
       ) : (
@@ -67,7 +65,7 @@ function Report({ name, raw }: { name: string; raw: boolean }) {
   );
   useEffect(() => load(false), [load]);
 
-  if (!report) return error ? <div className="empty err">{error}</div> : <div className="placeholder">正在连接服务器…</div>;
+  if (!report) return error ? <Empty icon="alert" title="连接失败">{error}</Empty> : <Skeleton lines={8} />;
   const s = report.status;
   const diskPct = Math.round((s.disk.used / s.disk.total) * 100);
   const memPct = s.memory.total && s.memory.available !== null ? Math.round((1 - s.memory.available / s.memory.total) * 100) : null;

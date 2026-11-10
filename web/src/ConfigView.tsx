@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { configApi, type ConfigDiff, type ConfigStatus, type ConfigVersion } from './api.ts';
 import { when } from './format.ts';
+import { Cmd, ErrorPage, LoadingPage, PageHeader, Skeleton } from './ui.tsx';
 
 const SOURCE_LABEL: Record<ConfigVersion['source'], string> = { snapshot: '快照', backup: '旧备份', 'before-restore': '回滚前', restore: '回滚' };
 
@@ -16,15 +17,12 @@ export function ConfigView() {
     }, (e) => setError(e.message));
   }, []);
 
-  if (error) return <div className="placeholder err">{error}</div>;
-  if (!files) return <div className="placeholder">加载中…</div>;
+  if (error) return <ErrorPage title="配置管家" error={error} />;
+  if (!files) return <LoadingPage title="配置管家" />;
 
   return (
-    <div className="configs">
-      <h2>配置管家</h2>
-      <p className="hint">
-        记录各 agent 配置文件的每个版本，旁边散落的旧备份也整理进同一条时间线。内容里的 key、密码已打码。回滚会改写配置文件，只能在命令行里执行。
-      </p>
+    <div className="page configs">
+      <PageHeader title="配置管家" desc="记录各 agent 配置文件的每个版本，旁边散落的旧备份也整理进同一条时间线。内容里的 key、密码已打码。回滚会改写配置文件，只能在命令行里执行。" />
       <div className="config-files">
         {files.map((f) => (
           <button key={f.path} className={'config-file' + (f.path === path ? ' active' : '')} disabled={!f.versions} onClick={() => setPath(f.path)}>
@@ -36,7 +34,9 @@ export function ConfigView() {
           </button>
         ))}
       </div>
-      {path ? <Timeline key={path} path={path} /> : <div className="empty">还没有记录任何版本。运行 node src/cli/main.ts config import 导入旧备份。</div>}
+      {path ? <Timeline key={path} path={path} /> : <div className="empty">
+          还没有记录任何版本。导入旁边散落的旧备份：<Cmd>yuchao config import</Cmd>
+        </div>}
     </div>
   );
 }
@@ -64,7 +64,7 @@ function Timeline({ path }: { path: string }) {
     else if (prev) configApi.diff(path, String(prev.id), String(selected)).then(setDiff);
   }, [path, versions, selected, against]);
 
-  if (!versions) return <div className="placeholder">加载中…</div>;
+  if (!versions) return <Skeleton lines={6} />;
   const isOldest = versions.at(-1)?.id === selected;
 
   return (
@@ -96,7 +96,7 @@ function Timeline({ path }: { path: string }) {
             </div>
             {versions.find((v) => v.id === selected)?.error && <p className="err">这个版本已损坏：{versions.find((v) => v.id === selected)!.error}</p>}
             <p className="meta">
-              回滚到这个版本：<code>node src/cli/main.ts config restore {selected}</code>（先预览改动，确认后加 --yes）
+              回滚到这个版本：<Cmd>{`yuchao config restore ${selected}`}</Cmd> 先预览改动，确认后加 --yes
             </p>
             {against === 'previous' && isOldest ? <div className="empty">这是最早的版本，没有可以对比的上一版。</div> : <DiffView diff={diff} />}
           </>
@@ -107,7 +107,7 @@ function Timeline({ path }: { path: string }) {
 }
 
 function DiffView({ diff }: { diff: ConfigDiff | null }) {
-  if (!diff) return <div className="placeholder">对比中…</div>;
+  if (!diff) return <Skeleton lines={6} />;
   if (diff.broken) return <div className="empty">{diff.broken}</div>;
   const d = diff.diff!;
   return (

@@ -246,3 +246,13 @@ export const serverApi = {
   list: () => get<ServerConfig[]>('/api/servers'),
   status: (name: string, raw?: boolean, fresh?: boolean) => get<ServerReport>(`/api/server?${qs({ name, raw: flag(raw), fresh: flag(fresh) })}`),
 };
+
+export interface Stats {
+  sessions: { agent: Agent; n: number }[];
+  messages: { role: Role; n: number }[];
+  range: { first: string | null; last: string | null };
+}
+
+export const statsApi = {
+  get: () => get<Stats>('/api/stats'),
+};

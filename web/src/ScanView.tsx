@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AGENT_LABEL, api, type AuditResult, type Finding } from './api.ts';
+import { api, type AuditResult, type Finding } from './api.ts';
 import { when } from './format.ts';
+import { AgentBadge, Empty, ErrorPage, LoadingPage, PageHeader } from './ui.tsx';
 
 const RULE_ADVICE: Record<string, string> = {
   server_credential: '这是一整套能直接登录服务器的信息。建议改密码，改用 SSH 密钥登录，并关闭密码登录。',
@@ -44,14 +45,18 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
     }
   }
 
-  if (error) return <div className="placeholder err">{error}</div>;
-  if (!result) return <div className="placeholder">扫描中…</div>;
+  if (error) return <ErrorPage title="安全扫描" error={error} />;
+  if (!result) return <LoadingPage title="安全扫描" />;
 
   const high = result.findings.filter((f) => f.severity === 'high').length;
   const total = result.findings.reduce((n, f) => n + f.count, 0);
 
   return (
-    <div className="scan">
+    <div className="page scan">
+      <PageHeader
+        title="安全扫描"
+        desc="找出会话里泄露的密码、API key 和私钥。所有内容都已打码，报告里不会出现原文；同一个秘密出现在多处时归为一条，依据是它的指纹（SHA-256 的前 16 位，无法反推出原文）。"
+      />
       <section className="scan-summary">
         <div className="stat">
           <b className={high ? 'danger' : ''}>{high}</b>
@@ -77,9 +82,12 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
         </div>
       </section>
 
-      <p className="hint">所有内容都已打码，报告里不会出现原文。同一个秘密出现在多处时归为一条，依据是它的指纹（SHA-256 的前 16 位，无法反推出原文）。</p>
 
-      {result.findings.length === 0 && <div className="empty">没有发现泄露。</div>}
+      {result.findings.length === 0 && (
+        <Empty icon="shield" title="没有发现泄露">
+          会话里没有找到密码、密钥或令牌。
+        </Empty>
+      )}
 
       {result.findings.map((f) => (
         <article key={f.fingerprint} className={'finding ' + f.severity + (ignored.has(f.fingerprint) ? ' ignored' : '')}>
@@ -99,7 +107,7 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
             {f.occurrences.slice(0, 5).map((o, i) => (
               <li key={i}>
                 <button className="occ" onClick={() => onOpen(o.sessionId, o.seq)}>
-                  <span className={'badge ' + o.agent}>{AGENT_LABEL[o.agent]}</span>
+                  <AgentBadge agent={o.agent} />
                   <span className="where">{o.where === 'title' ? '会话标题' : o.where}</span>
                   <span className="occ-title">{o.title ?? '（无标题）'}</span>
                   <span className="meta">{when(o.ts)}</span>

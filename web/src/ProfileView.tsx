@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AGENT_LABEL, AGENTS, profileApi, type ActivityStats, type AgentMemory, type ProfileDiff, type ProfileOverview, type ProfileVersion, type Scope } from './api.ts';
 import { when } from './format.ts';
+import { AgentBadge, Cmd, ErrorPage, LoadingPage, PageHeader } from './ui.tsx';
 
 const SCOPE_LABEL = (s: Scope) => (s === 'all' ? '综合' : `${AGENT_LABEL[s]} 眼中`);
 const MEMORY_TYPE: Record<AgentMemory['type'], string> = { user: '关于你', feedback: '做事要求', project: '项目', reference: '参考', other: '其他' };
@@ -13,11 +14,12 @@ export function ProfileView({ onOpen }: { onOpen: (sessionId: string) => void })
     profileApi.overview().then(setData, (e) => setError(e.message));
   }, []);
 
-  if (error) return <div className="placeholder err">{error}</div>;
-  if (!data) return <div className="placeholder">加载中…</div>;
+  if (error) return <ErrorPage title="Agent 眼中的你" error={error} />;
+  if (!data) return <LoadingPage title="Agent 眼中的你" />;
 
   return (
-    <div className="profile">
+    <div className="page profile">
+      <PageHeader title="Agent 眼中的你" desc="三个角度：本地统计出来的相处方式、agent 自己写下的记忆、大模型从你写的话里整理的画像（每条结论都附出处）。" />
       <Stats stats={data.stats} />
       <Memories memories={data.memories} onOpen={onOpen} />
       <Profiles latest={data.latest} versions={data.versions} onOpen={onOpen} />
@@ -130,7 +132,7 @@ function Memories({ memories, onOpen }: { memories: AgentMemory[]; onOpen: (sess
         {memories.map((m) => (
           <details key={m.agent + m.project + m.name} className="memory">
             <summary>
-              <span className={'badge ' + m.agent}>{AGENT_LABEL[m.agent]}</span>
+              <AgentBadge agent={m.agent} />
               <span className={'mem-type ' + m.type}>{MEMORY_TYPE[m.type]}</span>
               <b>{m.description || m.name}</b>
               <span className="meta">
@@ -168,8 +170,8 @@ function Profiles({ latest, versions, onOpen }: { latest: ProfileOverview['lates
       {available.length === 0 ? (
         <div className="empty">
           还没有生成过。生成会把你写的话（已打码）发给大模型并产生费用，所以只能在命令行里明确执行：
-          <pre>node src/cli/main.ts profile preview</pre>
-          <pre>node src/cli/main.ts profile build --yes</pre>
+          <Cmd>yuchao profile preview</Cmd>
+          <Cmd>yuchao profile build --yes</Cmd>
         </div>
       ) : (
         <>
