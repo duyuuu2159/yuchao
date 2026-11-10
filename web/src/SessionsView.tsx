@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { AGENT_LABEL, AGENTS, api, type Agent, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
 import { when } from './format.ts';
 import { highlight, Markdown } from './Markdown.tsx';
+import { HandoffPanel } from './HandoffPanel.tsx';
 import { AgentBadge, Empty, Icon, Skeleton } from './ui.tsx';
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -177,6 +178,7 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
   const [s, setS] = useState<SessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTools, setShowTools] = useState(false);
+  const [relay, setRelay] = useState(false);
   const focusRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -215,7 +217,12 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
           <button className="back" onClick={() => onOpen(null)}>
             <Icon name="back" /> 返回列表
           </button>
-          <h1>{s.title ?? '（无标题）'}</h1>
+          <div className="reader-title">
+            <h1>{s.title ?? '（无标题）'}</h1>
+            <button className="btn cta small" onClick={() => setRelay(true)} title="把这个会话整理成交接说明，粘贴给另一个 agent 接着做">
+              <Icon name="relay" /> 接力
+            </button>
+          </div>
           <div className="item-meta">
             <AgentBadge agent={s.agent} />
             <span>
@@ -255,6 +262,8 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
           </div>
         )}
       </div>
+
+      {relay && <HandoffPanel sessionId={s.id} agent={s.agent} raw={raw} onClose={() => setRelay(false)} />}
 
       <div className="reader-inner messages">
         {visible.length === 0 && <Empty title="这个会话里没有对话内容">只有工具调用或注入的上下文，勾选上面的选项可以查看。</Empty>}

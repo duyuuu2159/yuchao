@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { AGENT_LABEL, AGENTS, api, configApi, serverApi, statsApi, type AuditResult, type ConfigStatus, type ServerReport, type SessionRow, type Stats } from './api.ts';
+import { HandoffPanel } from './HandoffPanel.tsx';
+import { AGENT_LABEL, AGENTS, api, configApi, handoffApi, serverApi, statsApi, type AuditResult, type ConfigStatus, type ServerReport, type SessionRow, type Stats } from './api.ts';
 import { when } from './format.ts';
-import { AgentBadge, Cmd, Icon, PageHeader, Skeleton, Status, type IconName, type View } from './ui.tsx';
+import { AgentBadge, Cmd, Icon, Skeleton, Status, type IconName, type View } from './ui.tsx';
 
 /** 加载一份数据：undefined 表示还在加载，Error 表示失败 */
 function useLoad<T>(load: () => Promise<T>, key: number): T | Error | undefined {
@@ -28,9 +29,64 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
   const server = useLoad(async () => ((await serverApi.list()).length ? serverApi.status('') : null), reloadKey);
   const recent = useLoad(() => api.sessions(), reloadKey);
 
+  const relay = useLoad(() => handoffApi.get('latest').catch(() => null), reloadKey);
+  const [relayOpen, setRelayOpen] = useState(false);
+
   return (
     <div className="page overview">
-      <PageHeader title="概览" desc="本机所有 AI agent 的会话、泄露的秘密、配置和服务器，都在这里看一眼。数据只在本机，不上传。" />
+      <Masthead stats={stats} />
+      <section className="hero">
+        <h1>
+          把每个 agent，
+          <br />
+          <span className="grad">都收进一个巢</span>
+          <span className="dot">。</span>
+        </h1>
+        <div className="hero-cols">
+          <div className="hero-col">
+            <span className="label">卷首语</span>
+            <Editorial stats={stats} scan={scan} />
+          </div>
+          <div className="hero-col">
+            <span className="label">本期目录</span>
+            <ol className="toc">
+              {TOC.map(([v, name], i) => (
+                <li key={v}>
+                  <a href={'#/' + v}>
+                    <em>{String(i + 1).padStart(2, '0')}</em>
+                    {name}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div className="hero-col">
+            <span className="label">从这里开始</span>
+            {relay instanceof Error || relay === null ? (
+              <p className="meta">还没有可以接力的会话。</p>
+            ) : !relay ? (
+              <Skeleton lines={2} />
+            ) : (
+              <>
+                <button className="btn cta" onClick={() => setRelayOpen(true)}>
+                  <Icon name="relay" /> 接力上次的工作
+                </button>
+                <p className="meta relay-hint">
+                  上次在 {AGENT_LABEL[relay.facts.agent]} 里：{relay.facts.title}
+                </p>
+              </>
+            )}
+            <a className="text-link" href="#/sessions">
+              翻翻所有会话 <Icon name="arrow" size={14} />
+            </a>
+          </div>
+        </div>
+      </section>
+      {relayOpen && relay && !(relay instanceof Error) && (
+        <HandoffPanel sessionId={relay.facts.sessionId} agent={relay.facts.agent} raw={false} onClose={() => setRelayOpen(false)} />
+      )}
+
+      <SectionLabel no="01" name="此刻" />
       <Numbers stats={stats} />
       <div className="cards">
         <ScanCard scan={scan} go={go} />
@@ -38,8 +94,61 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
         <ServerCard server={server} go={go} />
         <AgentsCard stats={stats} go={go} />
       </div>
+      <SectionLabel no="02" name="最近" />
       <Recent sessions={recent} go={go} />
     </div>
+  );
+}
+
+const TOC: [View, string][] = [
+  ['sessions', '翻会话'],
+  ['scan', '查泄露'],
+  ['profile', '看画像'],
+  ['config', '管配置'],
+  ['server', '看服务器'],
+];
+
+const WEEK = '日一二三四五六';
+
+/** 刊头：和个人网站一样，把这一天当成杂志的一期，期数是记录开始以来的第几天 */
+function Masthead({ stats }: { stats: Stats | Error | undefined }) {
+  const now = new Date();
+  const first = stats && !(stats instanceof Error) && stats.range.first ? new Date(stats.range.first) : null;
+  const issue = first ? Math.floor((now.getTime() - first.getTime()) / 86400000) + 1 : null;
+  return (
+    <div className="masthead">
+      <span>
+        <b>鱼巢</b> · 一本关于你和 AI 的本地杂志
+      </span>
+      <span>
+        {issue !== null && `第 ${issue} 期 · `}
+        {now.getFullYear()}.{now.getMonth() + 1}.{now.getDate()} · 星期{WEEK[now.getDay()]}
+      </span>
+    </div>
+  );
+}
+
+/** 卷首语：用今天的真实数字写一句话，不是固定文案 */
+function Editorial({ stats, scan }: { stats: Stats | Error | undefined; scan: AuditResult | Error | undefined }) {
+  if (!stats || stats instanceof Error) return <Skeleton lines={2} />;
+  const agents = stats.sessions.filter((s) => s.n).length;
+  const you = stats.messages.find((m) => m.role === 'user')?.n ?? 0;
+  const high = scan && !(scan instanceof Error) ? scan.findings.filter((f) => f.severity === 'high').length : null;
+  return (
+    <p className="editorial">
+      你和 {agents} 个 agent 一共说了 {n(you)} 句话。
+      {high === null ? '' : high > 0 ? `其中藏着 ${high} 个高风险的秘密，记得去换掉。` : '没有发现泄露的秘密，很好。'}
+    </p>
+  );
+}
+
+function SectionLabel({ no, name }: { no: string; name: string }) {
+  return (
+    <h2 className="section-label">
+      <span className="kicker">
+        {no} · {name}
+      </span>
+    </h2>
   );
 }
 
@@ -221,7 +330,6 @@ function AgentsCard({ stats, go }: { stats: Stats | Error | undefined } & Go) {
 function Recent({ sessions, go }: { sessions: SessionRow[] | Error | undefined } & Go) {
   return (
     <section className="recent">
-      <h2>最近的会话</h2>
       {sessions instanceof Error ? (
         <p className="err">{sessions.message}</p>
       ) : !sessions ? (

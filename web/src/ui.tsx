@@ -22,6 +22,7 @@ const ICONS = {
   x: 'M5 5l10 10M15 5L5 15',
   back: 'M11.500 5 6.500 10l5 5',
   arrow: 'M4 10h12M11.500 5.500 16 10l-4.500 4.500',
+  relay: 'M3 7h9.500M9.500 4l3 3-3 3M17 13H7.500M10.500 10l-3 3 3 3',
 } as const;
 
 export type IconName = keyof typeof ICONS;
@@ -44,11 +45,16 @@ export function AgentBadge({ agent }: { agent: Agent }) {
   );
 }
 
-export function PageHeader({ title, desc, children }: { title: string; desc?: ReactNode; children?: ReactNode }) {
+/** 页头：杂志式的小标签（编号 · 栏目），大标题以一个粉色句号收尾，和个人网站的标题风格一致 */
+export function PageHeader({ kicker, title, desc, children }: { kicker?: string; title: string; desc?: ReactNode; children?: ReactNode }) {
   return (
     <header className="page-head">
       <div>
-        <h1>{title}</h1>
+        {kicker && <span className="kicker">{kicker}</span>}
+        <h1>
+          {title}
+          <span className="dot">。</span>
+        </h1>
         {desc && <p>{desc}</p>}
       </div>
       {children && <div className="page-actions">{children}</div>}

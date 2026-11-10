@@ -61,16 +61,19 @@ export function App() {
             巢
           </span>
           <span className="brand-text">
-            <b>鱼巢</b>
+            <b>
+              鱼<span className="brand-accent">巢</span>
+            </b>
             <small>AgentNest</small>
           </span>
         </div>
 
         <nav aria-label="页面">
-          {NAV.map((n) => (
+          {NAV.map((n, i) => (
             <a key={n.view} href={`#/${n.view}`} className={route.view === n.view ? 'on' : ''} aria-current={route.view === n.view ? 'page' : undefined} title={n.label}>
               <Icon name={n.icon} size={18} />
               <span>{n.label}</span>
+              <em>{String(i).padStart(2, '0')}</em>
             </a>
           ))}
         </nav>

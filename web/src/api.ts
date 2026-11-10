@@ -256,3 +256,24 @@ export interface Stats {
 export const statsApi = {
   get: () => get<Stats>('/api/stats'),
 };
+
+export interface Handoff {
+  facts: {
+    sessionId: string;
+    agent: Agent;
+    title: string;
+    cwd: string | null;
+    userMessages: number;
+    toolCalls: number;
+    files: { path: string; edits: number }[];
+    commands: string[];
+    errors: string[];
+  };
+  markdown: string;
+  chars: number;
+  tokens: number;
+}
+
+export const handoffApi = {
+  get: (id: string, to?: Agent, raw?: boolean) => get<Handoff>(`/api/handoff/${encodeURIComponent(id)}?${qs({ to, raw: flag(raw) })}`),
+};

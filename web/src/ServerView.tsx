@@ -24,7 +24,7 @@ export function ServerView({ raw }: { raw: boolean }) {
 
   return (
     <div className="page configs server-page">
-      <PageHeader title="服务器" desc="鱼巢用一把专用密钥登录服务器，这把密钥在服务器上被锁定为只能运行一个只读的状态脚本：不能执行其他命令，也不能转发端口。所以这里只能看，不能改。日志里的密码和访客 IP 默认打码。" />
+      <PageHeader kicker="05 · 服务器" title="服务器" desc="鱼巢用一把专用密钥登录服务器，这把密钥在服务器上被锁定为只能运行一个只读的状态脚本：不能执行其他命令，也不能转发端口。所以这里只能看，不能改。日志里的密码和访客 IP 默认打码。" />
       {servers.length === 0 ? (
         <div className="empty">
           还没有添加服务器。在命令行里运行：

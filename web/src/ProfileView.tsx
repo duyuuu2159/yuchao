@@ -19,7 +19,7 @@ export function ProfileView({ onOpen }: { onOpen: (sessionId: string) => void })
 
   return (
     <div className="page profile">
-      <PageHeader title="Agent 眼中的你" desc="三个角度：本地统计出来的相处方式、agent 自己写下的记忆、大模型从你写的话里整理的画像（每条结论都附出处）。" />
+      <PageHeader kicker="03 · 画像" title="Agent 眼中的你" desc="三个角度：本地统计出来的相处方式、agent 自己写下的记忆、大模型从你写的话里整理的画像（每条结论都附出处）。" />
       <Stats stats={data.stats} />
       <Memories memories={data.memories} onOpen={onOpen} />
       <Profiles latest={data.latest} versions={data.versions} onOpen={onOpen} />
