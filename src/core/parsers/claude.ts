@@ -1,4 +1,4 @@
-import { basename, dirname } from 'node:path';
+import { basename } from 'node:path';
 import { readJsonl } from '../lines.ts';
 import { clip, type Role, type Session } from '../types.ts';
 import { isClaudeContext, titleFrom, toText } from '../text.ts';
@@ -7,11 +7,15 @@ import { isClaudeContext, titleFrom, toText } from '../text.ts';
  * 解析 Claude Code 的会话文件：
  *   ~/.claude/projects/<项目>/<sessionId>.jsonl
  *   ~/.claude/projects/<项目>/<sessionId>/subagents/agent-<id>.jsonl   （子 agent）
+ *   ~/.claude/projects/<项目>/<sessionId>/subagents/workflows/<wf>/agent-<id>.jsonl   （工作流里的子 agent）
  */
 export async function parseClaudeFile(path: string): Promise<Session> {
   const stem = basename(path, '.jsonl');
-  const isSub = basename(dirname(path)) === 'subagents';
-  const parentNative = isSub ? basename(dirname(dirname(path))) : null;
+  // 路径里出现 subagents 目录就是子 agent，它前面一级是父会话的 id；层级可能不止一层
+  const parts = path.split(/[\\/]/);
+  const subIdx = parts.lastIndexOf('subagents');
+  const isSub = subIdx > 0;
+  const parentNative = isSub ? parts[subIdx - 1] : null;
   const nativeId = isSub ? `${parentNative}/${stem}` : stem;
 
   const session: Session = {

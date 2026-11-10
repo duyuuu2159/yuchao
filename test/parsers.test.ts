@@ -78,3 +78,15 @@ test('Codex：能直接读取 zstd 压缩的会话，结果与未压缩一致', 
   assert.deepEqual(packed.messages, plain.messages);
   assert.equal(packed.archived, true);
 });
+
+test('Claude：工作流里的子 agent（subagents 下面还有一层目录）也挂在父会话下', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'yuchao-wf-'));
+  const { mkdirSync } = await import('node:fs');
+  const p = join(dir, 'projects', 'G--demo', 'p1', 'subagents', 'workflows', 'wf_1');
+  mkdirSync(p, { recursive: true });
+  writeFileSync(join(p, 'agent-x.jsonl'), JSON.stringify({ type: 'user', timestamp: '2026-11-10T00:00:00Z', message: { content: '[Workflow harness — computed task] 做点事' } }) + '\n');
+  const s = await parseClaudeFile(join(p, 'agent-x.jsonl'));
+  assert.equal(s.id, 'claude:p1/agent-x');
+  assert.equal(s.parentId, 'claude:p1');
+  assert.deepEqual(s.messages.map((m) => m.role), ['context'], '工作流的任务说明不是用户写的');
+});
