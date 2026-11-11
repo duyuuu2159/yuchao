@@ -1,0 +1,18 @@
+name: 建议
+description: 想支持新的 agent，或者希望多一个功能
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题
+      description: 先说场景，再说方案。例如「在 Codex 和 Claude 之间切换时，每次都要重新解释项目背景」
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 设想的做法（可选）
+  - type: markdown
+    attributes:
+      value: 想接入新的 agent？请写明它的会话文件放在哪里、是什么格式。鱼巢不根据猜测的格式写解析器。

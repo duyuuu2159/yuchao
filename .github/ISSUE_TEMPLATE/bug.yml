@@ -1,0 +1,36 @@
+name: 报告问题
+description: 解析错误、搜索不到、界面异常、命令报错
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **请不要粘贴真实的会话内容、配置文件或截图里没打码的部分。** 会话里常常有密码和 key。
+        需要示例时，照着格式手写几行就够了。安全漏洞请走 [私密报告](https://github.com/duyuuu2159/yuchao/security/advisories/new)。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 运行 `yuchao --version` 的输出
+      placeholder: yuchao 0.2.0 (node 24.18.0, win32-x64)
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: 涉及哪个 agent
+      multiple: true
+      options: [Claude Code, Codex, WorkBuddy, DeepSeek Harness, 不涉及]
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 运行了什么命令或点了哪里，看到了什么，期望看到什么
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: 能复现的最小示例（可选）
+      description: 手写的几行会话 JSONL，或者匿名化后的报错信息
+      render: text
