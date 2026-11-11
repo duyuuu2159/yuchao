@@ -63,7 +63,8 @@ function field(text: string, names: string[]): string[] {
 
 export function filesTouched(toolName: string | null, text: string): string[] {
   // Write/Edit 只认 file_path：写入的内容里可能恰好有补丁格式的文字，不能当成改了那些文件
-  if (toolName && EDIT_TOOLS.test(toolName) && toolName !== 'apply_patch') return field(text, ['file_path', 'path', 'notebook_path']).slice(0, 1);
+  if (toolName && EDIT_TOOLS.test(toolName) && toolName !== 'apply_patch')
+    return field(text, ['file_path', 'path', 'notebook_path']).slice(0, 1);
   // apply_patch，以及 Codex 的 exec 工具里内嵌的 apply_patch
   return [...text.matchAll(/\*\*\* (?:Add|Update|Delete) File: ([^\n\\"]+)/g)].map((m) => m[1].trim());
 }
@@ -93,8 +94,19 @@ const shortPath = (p: string, cwd: string | null) => {
   return c && q.toLowerCase().startsWith(c.toLowerCase() + '/') ? q.slice(c.length + 1) : q;
 };
 
-export function extractFacts(session: { id: string; agent: string; title: string | null; cwd: string | null; startedAt: string | null; updatedAt: string | null; messages: Msg[] }): HandoffFacts {
-  const users = session.messages.filter((m) => m.role === 'user').map((m) => m.text.trim()).filter(Boolean);
+export function extractFacts(session: {
+  id: string;
+  agent: string;
+  title: string | null;
+  cwd: string | null;
+  startedAt: string | null;
+  updatedAt: string | null;
+  messages: Msg[];
+}): HandoffFacts {
+  const users = session.messages
+    .filter((m) => m.role === 'user')
+    .map((m) => m.text.trim())
+    .filter(Boolean);
   const seen = new Set<string>();
   const distinct = users.filter((u) => !seen.has(u) && seen.add(u));
   const meaningful = distinct.filter((u) => !FILLER.test(u));
@@ -121,7 +133,11 @@ export function extractFacts(session: { id: string; agent: string; title: string
       if (e) errors.push(e);
     }
   }
-  const lastReply = [...session.messages].reverse().find((m) => m.role === 'assistant')?.text.trim() ?? null;
+  const lastReply =
+    [...session.messages]
+      .reverse()
+      .find((m) => m.role === 'assistant')
+      ?.text.trim() ?? null;
   const dedupeTail = (xs: string[], n: number) => [...new Set([...xs].reverse())].slice(0, n).reverse();
 
   return {
@@ -137,19 +153,31 @@ export function extractFacts(session: { id: string; agent: string; title: string
     // 最近的几条要求，不和「最初的目标」重复
     recentAsks: meaningful.slice(1).slice(-6),
     // 按改动次数排，改得多的通常是这次的主战场
-    files: [...files].sort((a, b) => b[1].last - a[1].last).slice(0, 15).map(([path, v]) => ({ path, edits: v.edits })),
+    files: [...files]
+      .sort((a, b) => b[1].last - a[1].last)
+      .slice(0, 15)
+      .map(([path, v]) => ({ path, edits: v.edits })),
     commands: dedupeTail(commands, 8),
     errors: dedupeTail(errors, 4),
     lastReply,
   };
 }
 
-const AGENT_MEMORY_FILE: Partial<Record<AgentKind, string>> = { claude: 'CLAUDE.md', codex: 'AGENTS.md', workbuddy: 'AGENTS.md', dsh: 'AGENTS.md' };
+const AGENT_MEMORY_FILE: Partial<Record<AgentKind, string>> = {
+  claude: 'CLAUDE.md',
+  codex: 'AGENTS.md',
+  workbuddy: 'AGENTS.md',
+  dsh: 'AGENTS.md',
+};
 
 export function renderHandoff(f: HandoffFacts, to?: AgentKind, budget = 6000): string {
   const from = agentLabel(f.agent);
   const day = (ts: string | null) => (ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '未知');
-  const quote = (s: string) => s.split('\n').map((l) => '> ' + l).join('\n');
+  const quote = (s: string) =>
+    s
+      .split('\n')
+      .map((l) => '> ' + l)
+      .join('\n');
 
   // 预算不够时，先缩短这几段，顺序就是重要程度从低到高
   for (const level of [0, 1, 2, 3]) {
@@ -215,7 +243,9 @@ export function buildHandoff(store: Store, sessionId: string, opts: { to?: strin
 /** 最近一个有你亲手写的话的会话（跳过子 agent 和工作流自动跑的会话），「接力上次的工作」用它 */
 export function latestWorkSession(store: Store): string | null {
   const r = store.db
-    .prepare("SELECT s.id FROM sessions s WHERE s.parent_id IS NULL AND EXISTS (SELECT 1 FROM messages m WHERE m.session_id = s.id AND m.role = 'user') ORDER BY s.updated_at DESC LIMIT 1")
+    .prepare(
+      "SELECT s.id FROM sessions s WHERE s.parent_id IS NULL AND EXISTS (SELECT 1 FROM messages m WHERE m.session_id = s.id AND m.role = 'user') ORDER BY s.updated_at DESC LIMIT 1",
+    )
     .get() as { id: string } | undefined;
   return r?.id ?? null;
 }

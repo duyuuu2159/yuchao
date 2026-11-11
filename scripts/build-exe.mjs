@@ -52,7 +52,10 @@ console.log(`  ${Object.keys(assets).length} 个文件`);
 step('生成 SEA 数据');
 const blob = join(dist, 'sea-prep.blob');
 const config = join(dist, 'sea-config.json');
-writeFileSync(config, JSON.stringify({ main: join(dist, 'yuchao.cjs'), output: blob, disableExperimentalSEAWarning: true, assets }, null, 2));
+writeFileSync(
+  config,
+  JSON.stringify({ main: join(dist, 'yuchao.cjs'), output: blob, disableExperimentalSEAWarning: true, assets }, null, 2),
+);
 run(process.execPath, ['--experimental-sea-config', config]);
 
 step('注入 node 可执行文件的副本');

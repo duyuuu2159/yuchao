@@ -37,7 +37,11 @@ export function App() {
     setNotice(null);
     try {
       const r: IndexResult = await api.index();
-      setNotice({ text: `已更新 ${r.indexed} 个会话，${r.skipped} 个没有变化，用时 ${(r.ms / 1000).toFixed(1)} 秒` + (r.errors.length ? `，${r.errors.length} 个文件解析失败` : '') });
+      setNotice({
+        text:
+          `已更新 ${r.indexed} 个会话，${r.skipped} 个没有变化，用时 ${(r.ms / 1000).toFixed(1)} 秒` +
+          (r.errors.length ? `，${r.errors.length} 个文件解析失败` : ''),
+      });
       setReloadKey((k) => k + 1);
     } catch (e: any) {
       setNotice({ text: e.message, error: true });
@@ -70,7 +74,13 @@ export function App() {
 
         <nav aria-label="页面">
           {NAV.map((n, i) => (
-            <a key={n.view} href={`#/${n.view}`} className={route.view === n.view ? 'on' : ''} aria-current={route.view === n.view ? 'page' : undefined} title={n.label}>
+            <a
+              key={n.view}
+              href={`#/${n.view}`}
+              className={route.view === n.view ? 'on' : ''}
+              aria-current={route.view === n.view ? 'page' : undefined}
+              title={n.label}
+            >
               <Icon name={n.icon} size={18} />
               <span>{n.label}</span>
               <em>{String(i).padStart(2, '0')}</em>
@@ -79,7 +89,13 @@ export function App() {
         </nav>
 
         <div className="side-foot">
-          <button type="button" className="side-btn primary" onClick={reindex} disabled={indexing} title="重新读取各个 agent 的会话文件，只处理有变化的">
+          <button
+            type="button"
+            className="side-btn primary"
+            onClick={reindex}
+            disabled={indexing}
+            title="重新读取各个 agent 的会话文件，只处理有变化的"
+          >
             <Icon name="refresh" size={18} />
             <span>{indexing ? '索引中…' : '更新索引'}</span>
           </button>
@@ -88,7 +104,12 @@ export function App() {
             <Icon name="eye" size={18} />
             <span>显示原文</span>
           </label>
-          <button type="button" className="side-btn" onClick={() => setTheme(nextTheme.value)} title={`外观：${currentTheme.label}（点击切换到${nextTheme.label}）`}>
+          <button
+            type="button"
+            className="side-btn"
+            onClick={() => setTheme(nextTheme.value)}
+            title={`外观：${currentTheme.label}（点击切换到${nextTheme.label}）`}
+          >
             <Icon name={currentTheme.icon} size={18} />
             <span>{currentTheme.label}</span>
           </button>

@@ -31,7 +31,9 @@ export class OpenAiCompatibleLlm implements LlmClient {
 
   async json<T>(req: JsonRequest<T>): Promise<{ data: T; usage: Usage }> {
     // JSON Schema 里的整数范围对模型没有意义，只会占 token
-    const schema = JSON.parse(JSON.stringify(z.toJSONSchema(req.schema), (k, v) => (k === 'minimum' || k === 'maximum' || k === '$schema' ? undefined : v)));
+    const schema = JSON.parse(
+      JSON.stringify(z.toJSONSchema(req.schema), (k, v) => (k === 'minimum' || k === 'maximum' || k === '$schema' ? undefined : v)),
+    );
     const body = {
       model: this.model,
       max_tokens: req.maxTokens ?? 16000,

@@ -47,11 +47,26 @@ test('配置打码：通用规则之外，名字里带 key、token、secret 的�
 test('找出和配置放在一起的手工备份，不把无关文件算进来', () => {
   const { at, toml, dirs } = setup();
   at(toml, 'a = 1', '2026-11-01T00:00:00Z');
-  for (const n of ['config.toml.bak_20260722_184528', 'config.toml.corrupted', 'config.toml.ccr-original', 'config.toml.bak_before_cpp140', 'config.toml.lock', 'other.toml', 'config.tomlx.bak']) {
+  for (const n of [
+    'config.toml.bak_20260722_184528',
+    'config.toml.corrupted',
+    'config.toml.ccr-original',
+    'config.toml.bak_before_cpp140',
+    'config.toml.lock',
+    'other.toml',
+    'config.tomlx.bak',
+  ]) {
     writeFileSync(join(dirs.codex!, n), 'x = 1');
   }
-  const names = findBackups(toml).map((p) => p.split(/[\\/]/).pop()).sort();
-  assert.deepEqual(names, ['config.toml.bak_20260722_184528', 'config.toml.bak_before_cpp140', 'config.toml.ccr-original', 'config.toml.corrupted']);
+  const names = findBackups(toml)
+    .map((p) => p.split(/[\\/]/).pop())
+    .sort();
+  assert.deepEqual(names, [
+    'config.toml.bak_20260722_184528',
+    'config.toml.bak_before_cpp140',
+    'config.toml.ccr-original',
+    'config.toml.corrupted',
+  ]);
 });
 
 test('快照：内容有变化才记一版，版本时间取文件的修改时间', () => {
@@ -78,7 +93,10 @@ test('导入旧备份：按修改时间排进时间线，重复的跳过，损�
   const r = cfg.importBackups();
   assert.deepEqual(r, { imported: 2, duplicates: 1, broken: 1 });
   const vs = cfg.versions(toml);
-  assert.deepEqual(vs.map((v) => v.label), ['自动快照', 'config.toml.bak_1', 'config.toml.corrupted']);
+  assert.deepEqual(
+    vs.map((v) => v.label),
+    ['自动快照', 'config.toml.bak_1', 'config.toml.corrupted'],
+  );
   assert.ok(vs[2].error);
   assert.equal(readFileSync(join(dirs.codex!, 'config.toml.corrupted'), 'utf8'), 'model = [\n');
   assert.deepEqual(cfg.importBackups(), { imported: 0, duplicates: 3, broken: 0 });
@@ -142,7 +160,10 @@ test('差异对比：增删行数、分块和行号', () => {
   assert.equal(d.added, 2);
   assert.equal(d.removed, 1);
   assert.equal(d.hunks.length, 2);
-  assert.deepEqual(d.hunks[0].lines.map((l) => `${l.kind}:${l.text}`), ['same:b', 'del:c', 'add:C', 'same:d']);
+  assert.deepEqual(
+    d.hunks[0].lines.map((l) => `${l.kind}:${l.text}`),
+    ['same:b', 'del:c', 'add:C', 'same:d'],
+  );
   assert.equal(d.hunks[0].oldStart, 2);
   assert.deepEqual(d.hunks[1].lines.at(-1), { kind: 'add', text: 'k', oldNo: null, newNo: 11 });
   assert.deepEqual(diffText('same', 'same').hunks, []);

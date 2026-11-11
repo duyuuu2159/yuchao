@@ -1,4 +1,17 @@
-import { authorizedKeysLine, checkServer, deployHistory, ensureKey, keyPath, loadServers, parseTarget, recordDeploy, REMOTE_SCRIPT, saveServers, type ServerConfig, type ServerReport } from '../core/server.ts';
+import {
+  authorizedKeysLine,
+  checkServer,
+  deployHistory,
+  ensureKey,
+  keyPath,
+  loadServers,
+  parseTarget,
+  recordDeploy,
+  REMOTE_SCRIPT,
+  saveServers,
+  type ServerConfig,
+  type ServerReport,
+} from '../core/server.ts';
 import type { Store } from '../core/store.ts';
 import { bold, color, day, dim, fail } from './style.ts';
 
@@ -22,24 +35,40 @@ function pick(servers: ServerConfig[], name: string | undefined): ServerConfig {
 
 function print(r: ServerReport, history: { release: string; seenAt: string }[]) {
   const s = r.status;
-  console.log(`${bold(r.server.name)} ${dim(`${s.host} · 已运行 ${duration(s.uptime)} · 负载 ${s.load.map((x) => x.toFixed(2)).join(' ')}`)}`);
-  console.log(r.warnings.length ? r.warnings.map((w) => (w.level === 'bad' ? red('✗ ') : yellow('! ')) + w.text).join('\n') : green('✓ 一切正常'));
+  console.log(
+    `${bold(r.server.name)} ${dim(`${s.host} · 已运行 ${duration(s.uptime)} · 负载 ${s.load.map((x) => x.toFixed(2)).join(' ')}`)}`,
+  );
+  console.log(
+    r.warnings.length ? r.warnings.map((w) => (w.level === 'bad' ? red('✗ ') : yellow('! ')) + w.text).join('\n') : green('✓ 一切正常'),
+  );
   console.log();
   for (const svc of s.services) {
     const state = svc.active === 'active' ? green('运行中') : red(svc.active);
     console.log(`服务 ${bold(svc.name)} ${state} ${dim(`${svc.since ? '启动于 ' + svc.since : ''}`)}`);
   }
   console.log(`应用 ${s.app.url} → ${s.app.status ?? s.app.error} ${dim(s.app.ms !== null ? s.app.ms + ' ms' : '')}`);
-  if (r.publicSite) console.log(`公网 ${r.server.url} → ${r.publicSite.status ?? r.publicSite.error} ${dim(r.publicSite.ms !== null ? r.publicSite.ms + ' ms' : '')}`);
+  if (r.publicSite)
+    console.log(
+      `公网 ${r.server.url} → ${r.publicSite.status ?? r.publicSite.error} ${dim(r.publicSite.ms !== null ? r.publicSite.ms + ' ms' : '')}`,
+    );
   console.log(`磁盘 ${gb(s.disk.used)} / ${gb(s.disk.total)}  内存可用 ${s.memory.available ? gb(s.memory.available) : '—'}`);
   console.log(`\n线上版本 ${bold(s.releases.current ?? '—')} ${dim(`（共 ${s.releases.total} 个 release）`)}`);
-  for (const rel of s.releases.items.slice(0, 8)) console.log(`  ${rel.current ? green('●') : dim('○')} ${rel.name} ${dim(day(new Date(rel.mtime * 1000).toISOString()))}`);
+  for (const rel of s.releases.items.slice(0, 8))
+    console.log(`  ${rel.current ? green('●') : dim('○')} ${rel.name} ${dim(day(new Date(rel.mtime * 1000).toISOString()))}`);
   if (history.length > 1) {
     console.log(dim('\n鱼巢观察到的上线记录：'));
     for (const h of history.slice(0, 5)) console.log(dim(`  ${day(h.seenAt)} ${h.release}`));
   }
   const failures = s.serviceLog.filter((l) => /Failed with result/.test(l));
-  if (failures.length) console.log(dim(`\n最近的异常退出：\n${failures.slice(-5).map((l) => '  ' + l).join('\n')}`));
+  if (failures.length)
+    console.log(
+      dim(
+        `\n最近的异常退出：\n${failures
+          .slice(-5)
+          .map((l) => '  ' + l)
+          .join('\n')}`,
+      ),
+    );
 }
 
 export async function runServer(store: Store, args: string[], flags: ServerFlags) {

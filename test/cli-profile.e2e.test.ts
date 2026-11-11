@@ -185,7 +185,10 @@ test('接口返回错误时以非零退出码失败，并给出提示', async ()
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   try {
     const keyFile = join(home, 'key.env');
-    writeFileSync(keyFile, `YUCHAO_BASE_URL=http://127.0.0.1:${(server.address() as AddressInfo).port}\nYUCHAO_API_KEY=x\nYUCHAO_PROVIDER=openai\n`);
+    writeFileSync(
+      keyFile,
+      `YUCHAO_BASE_URL=http://127.0.0.1:${(server.address() as AddressInfo).port}\nYUCHAO_API_KEY=x\nYUCHAO_PROVIDER=openai\n`,
+    );
     const r = await cli(home, 'profile', 'build', '--yes', '--key-file', keyFile, '--model', 'fake-model');
     assert.notEqual(r.code, 0);
     assert.match(r.err + r.out, /401|invalid api key/);

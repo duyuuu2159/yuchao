@@ -59,15 +59,33 @@ test('DeepSeek Harness：逐帧解压；只有 source.kind=user 是人写的；�
       [{ type: 'session', version: 4, id: 'child-1', createdAt: T(0), cwd: 'C:/demo', parentSession: 'session-lead', origin: 'subagent' }],
       [
         { type: 'subagent/descriptor', seq: 0, time: T(0), data: { label: '查日志' } },
-        { type: 'user/message', seq: 1, time: T(1), data: { content: [{ type: 'text', text: 'Current runtime context. cwd=C:/demo' }], source: { kind: 'runtime-context' } } },
-        { type: 'user/message', seq: 2, time: T(2), data: { content: [{ type: 'text', text: '帮我查一下服务器日志' }, { type: 'image' }], source: { kind: 'user' } } },
+        {
+          type: 'user/message',
+          seq: 1,
+          time: T(1),
+          data: { content: [{ type: 'text', text: 'Current runtime context. cwd=C:/demo' }], source: { kind: 'runtime-context' } },
+        },
+        {
+          type: 'user/message',
+          seq: 2,
+          time: T(2),
+          data: { content: [{ type: 'text', text: '帮我查一下服务器日志' }, { type: 'image' }], source: { kind: 'user' } },
+        },
       ],
       [
         {
           type: 'assistant/message',
           seq: 3,
           time: T(3),
-          data: { message: { content: [{ type: 'reasoning', text: '想一想' }, { type: 'text', text: '好的，我先登录。' }, { type: 'tool-call', name: 'pwsh', arguments: '{"command":"ssh demo"}' }] } },
+          data: {
+            message: {
+              content: [
+                { type: 'reasoning', text: '想一想' },
+                { type: 'text', text: '好的，我先登录。' },
+                { type: 'tool-call', name: 'pwsh', arguments: '{"command":"ssh demo"}' },
+              ],
+            },
+          },
         },
         { type: 'tool/result', seq: 4, time: T(4), data: { message: { content: [{ type: 'text', text: 'Welcome to Ubuntu' }] } } },
         { type: 'plugin:translator/request', seq: 5, time: T(5), data: { text: '翻译插件的内容不收录' } },
@@ -100,15 +118,21 @@ test('zstd 多帧：一个汉字被切在两帧之间也能拼回来；压缩数
   // 压不动的随机字节会被原样存进帧里，在中间放一个魔数，就模拟出「压缩数据中间碰巧出现帧头」
   const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
   let seed = 7;
-  const noise = (n: number) => Buffer.from(Array.from({ length: n }, () => {
-    seed = (seed * 1103515245 + 12345) % 2 ** 31;
-    return seed & 0xff;
-  }));
+  const noise = (n: number) =>
+    Buffer.from(
+      Array.from({ length: n }, () => {
+        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        return seed & 0xff;
+      }),
+    );
   const tricky = Buffer.concat([noise(40), MAGIC, noise(40)]);
   const first = zstdCompressSync(tricky);
   assert.ok(first.indexOf(MAGIC, 4) > 0, '帧中间确实出现了魔数');
   const frames = [...zstdFrames(Buffer.concat([first, zstdCompressSync(Buffer.from('z'))]))];
-  assert.deepEqual(frames.map((f) => f.toString('hex')), [tricky.toString('hex'), '7a']);
+  assert.deepEqual(
+    frames.map((f) => f.toString('hex')),
+    [tricky.toString('hex'), '7a'],
+  );
 });
 
 test('只索引传入了目录的 agent；WorkBuddy 的文件回滚记录不当成会话', async () => {
@@ -120,11 +144,28 @@ test('只索引传入了目录的 agent；WorkBuddy 的文件回滚记录不当�
 
   const store = new Store(':memory:');
   const dsh = mkdtempSync(join(tmpdir(), 'yuchao-dsh-'));
-  writeDsh(dsh, 'session-a', [[{ type: 'session', id: 'session-a', createdAt: T(0), cwd: 'C:/demo' }, { type: 'user/message', time: T(1), data: { content: [{ type: 'text', text: '部署 nginx' }], source: { kind: 'user' } } }]]);
+  writeDsh(dsh, 'session-a', [
+    [
+      { type: 'session', id: 'session-a', createdAt: T(0), cwd: 'C:/demo' },
+      { type: 'user/message', time: T(1), data: { content: [{ type: 'text', text: '部署 nginx' }], source: { kind: 'user' } } },
+    ],
+  ]);
   const r = await store.index({ workbuddy: WB, dsh });
   assert.deepEqual(r.errors, []);
-  assert.deepEqual(store.stats().sessions.map((x: any) => `${x.agent}:${x.n}`).sort(), ['dsh:1', 'workbuddy:1']);
-  assert.deepEqual(store.search('nginx').map((h) => h.agent).sort(), ['dsh', 'workbuddy']);
+  assert.deepEqual(
+    store
+      .stats()
+      .sessions.map((x: any) => `${x.agent}:${x.n}`)
+      .sort(),
+    ['dsh:1', 'workbuddy:1'],
+  );
+  assert.deepEqual(
+    store
+      .search('nginx')
+      .map((h) => h.agent)
+      .sort(),
+    ['dsh', 'workbuddy'],
+  );
 });
 
 test('每个 agent 都声明了标签、数据目录和配置文件；凭据文件不跟踪', () => {

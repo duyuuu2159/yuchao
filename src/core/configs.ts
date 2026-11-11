@@ -145,7 +145,9 @@ export class ConfigManager {
 
   /** 用当前的校验规则重新检查已有版本，规则改进后旧记录的结论也跟着更新 */
   private revalidate() {
-    const rows = this.store.db.prepare('SELECT v.id, v.path, v.error, b.content FROM config_versions v JOIN config_blobs b ON b.hash = v.hash').all() as any[];
+    const rows = this.store.db
+      .prepare('SELECT v.id, v.path, v.error, b.content FROM config_versions v JOIN config_blobs b ON b.hash = v.hash')
+      .all() as any[];
     const update = this.store.db.prepare('UPDATE config_versions SET error = ? WHERE id = ?');
     for (const r of rows) {
       const error = validate(formatOf(r.path), r.content);
@@ -245,7 +247,9 @@ export class ConfigManager {
   }
 
   versions(path: string): ConfigVersion[] {
-    return (this.store.db.prepare('SELECT * FROM config_versions WHERE path = ? ORDER BY captured_at DESC, id DESC').all(resolve(path)) as any[]).map(toVersion);
+    return (
+      this.store.db.prepare('SELECT * FROM config_versions WHERE path = ? ORDER BY captured_at DESC, id DESC').all(resolve(path)) as any[]
+    ).map(toVersion);
   }
 
   version(id: number): ConfigVersion | null {
@@ -255,7 +259,9 @@ export class ConfigManager {
 
   /** 原文，只在回滚时使用；显示一律走 redactConfig */
   rawContent(id: number): string {
-    const r = this.store.db.prepare('SELECT b.content FROM config_versions v JOIN config_blobs b ON b.hash = v.hash WHERE v.id = ?').get(id) as any;
+    const r = this.store.db
+      .prepare('SELECT b.content FROM config_versions v JOIN config_blobs b ON b.hash = v.hash WHERE v.id = ?')
+      .get(id) as any;
     if (!r) throw new Error(`没有版本 #${id}`);
     return r.content;
   }
@@ -275,14 +281,18 @@ export class ConfigManager {
   restore(id: number, opts: { force?: boolean } = {}): { before: ConfigVersion | null; after: ConfigVersion } {
     const target = this.version(id);
     if (!target) throw new Error(`没有版本 #${id}`);
-    if (target.error && !opts.force) throw new Error(`版本 #${id} 的格式有误（${target.error}），回滚后程序可能无法启动。确定要回滚请加 --force`);
+    if (target.error && !opts.force)
+      throw new Error(`版本 #${id} 的格式有误（${target.error}），回滚后程序可能无法启动。确定要回滚请加 --force`);
     const content = this.rawContent(id);
 
     let before: ConfigVersion | null = null;
     if (existsSync(target.path)) {
       const current = readFileSync(target.path, 'utf8');
       const latest = this.latest(target.path);
-      before = latest?.hash === sha(current) ? latest : this.record(target.path, current, new Date().toISOString(), 'before-restore', `回滚到 #${id} 之前的内容`);
+      before =
+        latest?.hash === sha(current)
+          ? latest
+          : this.record(target.path, current, new Date().toISOString(), 'before-restore', `回滚到 #${id} 之前的内容`);
     }
 
     const tmp = `${target.path}.yuchao-tmp-${process.pid}`;
@@ -296,5 +306,14 @@ export class ConfigManager {
 }
 
 function toVersion(r: any): ConfigVersion {
-  return { id: r.id, path: r.path, hash: r.hash, size: r.size, capturedAt: r.captured_at, source: r.source, label: r.label, error: r.error };
+  return {
+    id: r.id,
+    path: r.path,
+    hash: r.hash,
+    size: r.size,
+    capturedAt: r.captured_at,
+    source: r.source,
+    label: r.label,
+    error: r.error,
+  };
 }

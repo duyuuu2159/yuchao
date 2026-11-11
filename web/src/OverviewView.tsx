@@ -1,6 +1,19 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { HandoffPanel } from './HandoffPanel.tsx';
-import { AGENT_LABEL, AGENTS, api, configApi, handoffApi, serverApi, statsApi, type AuditResult, type ConfigStatus, type ServerReport, type SessionRow, type Stats } from './api.ts';
+import {
+  AGENT_LABEL,
+  AGENTS,
+  api,
+  configApi,
+  handoffApi,
+  serverApi,
+  statsApi,
+  type AuditResult,
+  type ConfigStatus,
+  type ServerReport,
+  type SessionRow,
+  type Stats,
+} from './api.ts';
 import { when } from './format.ts';
 import { AgentBadge, Cmd, Icon, Skeleton, Status, type IconName, type View } from './ui.tsx';
 
@@ -158,7 +171,10 @@ function Numbers({ stats }: { stats: Stats | Error | undefined }) {
   if (!stats) return <Skeleton height={76} />;
   const role = (r: string) => stats.messages.find((m) => m.role === r)?.n ?? 0;
   const sessions = stats.sessions.reduce((a, s) => a + s.n, 0);
-  const days = stats.range.first && stats.range.last ? Math.max(1, Math.round((Date.parse(stats.range.last) - Date.parse(stats.range.first)) / 86400000)) : 0;
+  const days =
+    stats.range.first && stats.range.last
+      ? Math.max(1, Math.round((Date.parse(stats.range.last) - Date.parse(stats.range.first)) / 86400000))
+      : 0;
   const items: [string, string, string?][] = [
     [n(sessions), '个会话', `来自 ${stats.sessions.filter((s) => s.n).length} 个 agent，含子 agent`],
     [n(role('user')), '条你写的消息'],
@@ -178,7 +194,21 @@ function Numbers({ stats }: { stats: Stats | Error | undefined }) {
   );
 }
 
-function Card({ icon, title, view, go, action, children }: { icon: IconName; title: string; view: View; go: (v: View) => void; action: string; children: ReactNode }) {
+function Card({
+  icon,
+  title,
+  view,
+  go,
+  action,
+  children,
+}: {
+  icon: IconName;
+  title: string;
+  view: View;
+  go: (v: View) => void;
+  action: string;
+  children: ReactNode;
+}) {
   return (
     <section className="card">
       <h2>
@@ -213,7 +243,9 @@ function ScanCard({ scan, go }: { scan: AuditResult | Error | undefined } & Go) 
             {high} 个高风险，至少出现在 {sessions} 个会话里
           </Status>
         )}
-        <p className="meta">扫描了 {n(scan.scannedMessages)} 条消息，用时 {(scan.ms / 1000).toFixed(1)} 秒。所有内容打码显示。</p>
+        <p className="meta">
+          扫描了 {n(scan.scannedMessages)} 条消息，用时 {(scan.ms / 1000).toFixed(1)} 秒。所有内容打码显示。
+        </p>
       </>
     );
   }

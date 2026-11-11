@@ -169,7 +169,10 @@ export function renderNotes(items: { ev: SessionEvidence; note: SessionNote }[])
 }
 
 /** 把模型引用的 S 编号换回真实会话；不存在的编号丢掉，没有有效引用的结论整条丢掉 */
-export function resolveProfile(raw: RawProfile, ids: Map<string, SessionEvidence>): { profile: ProfileDoc; droppedCitations: number; droppedClaims: number } {
+export function resolveProfile(
+  raw: RawProfile,
+  ids: Map<string, SessionEvidence>,
+): { profile: ProfileDoc; droppedCitations: number; droppedClaims: number } {
   let droppedCitations = 0;
   let droppedClaims = 0;
   const sections = raw.sections
@@ -261,8 +264,12 @@ export async function buildProfile(store: Store, llm: LlmClient, opts: BuildOpti
     ms: 0,
   };
 
-  const getCached = store.db.prepare('SELECT json FROM profile_notes WHERE session_id = ? AND hash = ? AND model = ? AND prompt_version = ?');
-  const putCached = store.db.prepare('INSERT OR REPLACE INTO profile_notes(session_id, hash, model, prompt_version, json, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+  const getCached = store.db.prepare(
+    'SELECT json FROM profile_notes WHERE session_id = ? AND hash = ? AND model = ? AND prompt_version = ?',
+  );
+  const putCached = store.db.prepare(
+    'INSERT OR REPLACE INTO profile_notes(session_id, hash, model, prompt_version, json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  );
 
   let done = 0;
   // 一开始就连续失败（余额不足、key 无效、接口不支持），继续试下去只会白白等待
@@ -305,7 +312,9 @@ export async function buildProfile(store: Store, llm: LlmClient, opts: BuildOpti
   meta.ms = Math.round(performance.now() - t0);
 
   const createdAt = new Date().toISOString();
-  const r = store.db.prepare('INSERT INTO profiles(scope, created_at, json, meta) VALUES (?, ?, ?, ?)').run(scope, createdAt, JSON.stringify(resolved.profile), JSON.stringify(meta));
+  const r = store.db
+    .prepare('INSERT INTO profiles(scope, created_at, json, meta) VALUES (?, ?, ?, ?)')
+    .run(scope, createdAt, JSON.stringify(resolved.profile), JSON.stringify(meta));
   return { id: Number(r.lastInsertRowid), scope, createdAt, profile: resolved.profile, meta };
 }
 

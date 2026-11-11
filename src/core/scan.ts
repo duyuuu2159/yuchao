@@ -39,7 +39,8 @@ export function entropy(s: string): number {
   return h;
 }
 
-const PLACEHOLDERS = /^(?:x+|\*+|\.+|-+|_+|null|none|nil|undefined|true|false|string|str|number|bool(?:ean)?|required|optional|password\d*|passwd|pwd|secret|token|your[_-]?\w*|my[_-]?\w*|example\w*|changeme|test[\w-]*|demo[\w-]*|placeholder|redacted|hidden|todo|xxx\w*|<[^>]*>|\$\{[^}]*\}|\{\{[^}]*\}\}|%\w+%?)$/i;
+const PLACEHOLDERS =
+  /^(?:x+|\*+|\.+|-+|_+|null|none|nil|undefined|true|false|string|str|number|bool(?:ean)?|required|optional|password\d*|passwd|pwd|secret|token|your[_-]?\w*|my[_-]?\w*|example\w*|changeme|test[\w-]*|demo[\w-]*|placeholder|redacted|hidden|todo|xxx\w*|<[^>]*>|\$\{[^}]*\}|\{\{[^}]*\}\}|%\w+%?)$/i;
 
 /**
  * 看起来像真实密码的值：
@@ -141,7 +142,8 @@ export const RULES: Rule[] = [
     id: 'generic_secret',
     name: '疑似密钥或令牌',
     severity: 'medium',
-    pattern: /\b(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|secret)\b["']?\s*[:=]\s*["']?([A-Za-z0-9_\-+/=.]{20,})/gi,
+    pattern:
+      /\b(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|secret)\b["']?\s*[:=]\s*["']?([A-Za-z0-9_\-+/=.]{20,})/gi,
     accept: (v) => entropy(v) >= 3.5 && looksLikeSecret(v),
   },
 ];
@@ -224,7 +226,8 @@ export function scanText(text: string, radius = 50): Match[] {
       if (a < end && b > end) end = b;
     }
     // 上下文里可能还有别的秘密，全部打码后再输出，原文不会出现在结果里
-    const context = (start > 0 ? '…' : '') + redactWith(text.slice(start, end), found).replace(/\s+/g, ' ') + (end < text.length ? '…' : '');
+    const context =
+      (start > 0 ? '…' : '') + redactWith(text.slice(start, end), found).replace(/\s+/g, ' ') + (end < text.length ? '…' : '');
     return { ...rest, context };
   });
 }

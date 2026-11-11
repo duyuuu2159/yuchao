@@ -26,7 +26,14 @@ async function setup(beforeIndex?: (root: string) => void) {
   const root = mkdtempSync(join(tmpdir(), 'yuchao-profile-'));
   cpSync(FIX, root, { recursive: true });
   const s1 = join(root, 'claude/projects/G--demo/s1.jsonl');
-  appendFileSync(s1, JSON.stringify({ type: 'user', message: { role: 'user', content: `服务器 203.0.113.7 root 密码 ${PW}` }, timestamp: '2026-11-03T00:00:00.000Z' }) + '\n');
+  appendFileSync(
+    s1,
+    JSON.stringify({
+      type: 'user',
+      message: { role: 'user', content: `服务器 203.0.113.7 root 密码 ${PW}` },
+      timestamp: '2026-11-03T00:00:00.000Z',
+    }) + '\n',
+  );
   beforeIndex?.(root);
   const store = new Store(':memory:');
   await store.index({ claude: join(root, 'claude'), codex: join(root, 'codex') });
@@ -48,7 +55,16 @@ class FakeLlm implements LlmClient {
       this.calls.push({ schema: 'note', user: req.user, system: req.system });
       if (this.failOn && req.user.includes(this.failOn)) throw new Error('模拟失败');
       const seq = Number(req.user.match(/\[#(\d+)\]/)![1]);
-      return { data: { summary: '排查网站问题', traits: [{ kind: 'skill', claim: '会用 nginx', seqs: [seq, 999] }, { kind: 'habit', claim: '只有假引用', seqs: [999] }] } as T, usage: { input: 100, output: 20 } };
+      return {
+        data: {
+          summary: '排查网站问题',
+          traits: [
+            { kind: 'skill', claim: '会用 nginx', seqs: [seq, 999] },
+            { kind: 'habit', claim: '只有假引用', seqs: [999] },
+          ],
+        } as T,
+        usage: { input: 100, output: 20 },
+      };
     }
     assert.equal(req.schema, ProfileSchema as unknown);
     this.calls.push({ schema: 'profile', user: req.user, system: req.system });
@@ -56,7 +72,13 @@ class FakeLlm implements LlmClient {
       data: {
         headline: '一个在折腾网站的人',
         sections: [
-          { title: '技能', claims: [{ text: '会排查 nginx 问题', evidence: ['S1', 's1', 'S99'] }, { text: '编造的结论', evidence: ['S99'] }] },
+          {
+            title: '技能',
+            claims: [
+              { text: '会排查 nginx 问题', evidence: ['S1', 's1', 'S99'] },
+              { text: '编造的结论', evidence: ['S99'] },
+            ],
+          },
           { title: '空分组', claims: [{ text: '也是编造的', evidence: [] }] },
         ],
       } as T,
@@ -98,7 +120,10 @@ test('证据只包含用户亲手写的话，带消息序号，密码已打码',
   assert.ok(!s1.text.includes(PW));
   assert.ok(!s1.text.includes('203.0.113.7') && s1.text.includes('[IP]'), 'IP 地址也要隐藏');
   assert.ok(!s1.text.includes('<command-name>'), '注入的上下文不应发送');
-  assert.deepEqual(sessionEvidence(store, { agent: 'codex' }).map((e) => e.sessionId), ['codex:c1']);
+  assert.deepEqual(
+    sessionEvidence(store, { agent: 'codex' }).map((e) => e.sessionId),
+    ['codex:c1'],
+  );
 });
 
 test('分叉会话复制的用户消息只出现一次，子 agent 会话不算', async () => {
@@ -114,7 +139,11 @@ test('分叉会话复制的用户消息只出现一次，子 agent 会话不算'
 test('会话太长时保留首尾，中间明确标出省略了多少条', async () => {
   const { store } = await setup((root) => {
     const lines = Array.from({ length: 60 }, (_, i) =>
-      JSON.stringify({ type: 'user', message: { role: 'user', content: `第 ${i} 条 ` + '很长的内容'.repeat(40) }, timestamp: `2026-11-04T00:${String(i).padStart(2, '0')}:00.000Z` }),
+      JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: `第 ${i} 条 ` + '很长的内容'.repeat(40) },
+        timestamp: `2026-11-04T00:${String(i).padStart(2, '0')}:00.000Z`,
+      }),
     );
     writeFileSync(join(root, 'claude/projects/G--demo/long.jsonl'), lines.join('\n') + '\n');
   });
@@ -130,9 +159,15 @@ test('本地统计', async () => {
   const st = activityStats(store);
   assert.deepEqual(st.sessions, { claude: 1, codex: 1, workbuddy: 0, dsh: 0 });
   assert.equal(st.userMessages, 3);
-  assert.equal(st.byHour.reduce((a, b) => a + b, 0), 3);
+  assert.equal(
+    st.byHour.reduce((a, b) => a + b, 0),
+    3,
+  );
   assert.deepEqual(st.topProjects.map((p) => p.name).sort(), ['demo', 'site']);
-  assert.equal(st.topTools.reduce((n, t) => n + t.calls, 0), 4);
+  assert.equal(
+    st.topTools.reduce((n, t) => n + t.calls, 0),
+    4,
+  );
 });
 
 test('生成画像：不存在的引用被剔除，没有有效引用的结论整条丢掉', async () => {
@@ -164,7 +199,10 @@ test('会话没变时复用缓存的总结，只重新汇总', async () => {
   await buildProfile(store, llm);
   llm.calls = [];
   const v2 = await buildProfile(store, llm);
-  assert.deepEqual(llm.calls.map((c) => c.schema), ['profile']);
+  assert.deepEqual(
+    llm.calls.map((c) => c.schema),
+    ['profile'],
+  );
   assert.equal(v2.meta.notesCached, 2);
   assert.equal(profileHistory(store, 'all').length, 2);
   assert.equal(latestProfile(store, 'all')!.id, v2.id);
@@ -191,8 +229,30 @@ test('按 agent 分别生成画像', async () => {
 });
 
 test('版本对比和导出', () => {
-  const a: ProfileDoc = { headline: 'a', sections: [{ title: 't', claims: [{ text: '旧结论', evidence: [] }, { text: '不变', evidence: [] }] }] };
-  const b: ProfileDoc = { headline: 'b', sections: [{ title: 't', claims: [{ text: '新结论', evidence: [] }, { text: '不变', evidence: [] }] }] };
+  const a: ProfileDoc = {
+    headline: 'a',
+    sections: [
+      {
+        title: 't',
+        claims: [
+          { text: '旧结论', evidence: [] },
+          { text: '不变', evidence: [] },
+        ],
+      },
+    ],
+  };
+  const b: ProfileDoc = {
+    headline: 'b',
+    sections: [
+      {
+        title: 't',
+        claims: [
+          { text: '新结论', evidence: [] },
+          { text: '不变', evidence: [] },
+        ],
+      },
+    ],
+  };
   assert.deepEqual(diffProfiles(a, b), { added: ['新结论'], removed: ['旧结论'] });
   const md = exportMarkdown({ id: 1, scope: 'all', createdAt: '2026-11-09T00:00:00Z', profile: b, meta: { sessions: 3 } as any });
   assert.match(md, /^## 关于我/);
@@ -203,7 +263,11 @@ test('版本对比和导出', () => {
 test('接口一开始就连续失败（例如余额不足）时立即停止，不把所有会话都试一遍', async () => {
   const { store } = await setup((root) => {
     for (let i = 0; i < 10; i++) {
-      const line = JSON.stringify({ type: 'user', message: { role: 'user', content: `第 ${i} 个会话` }, timestamp: `2026-11-05T00:0${i}:00.000Z` });
+      const line = JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: `第 ${i} 个会话` },
+        timestamp: `2026-11-05T00:0${i}:00.000Z`,
+      });
       writeFileSync(join(root, `claude/projects/G--demo/extra${i}.jsonl`), line + '\n');
     }
   });

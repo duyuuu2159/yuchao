@@ -57,7 +57,10 @@ test('会话、标题和搜索结果默认打码，raw=1 才返回原文', async
   const root = mkdtempSync(join(tmpdir(), 'yuchao-srv-'));
   cpSync(join(import.meta.dirname, 'fixtures'), root, { recursive: true });
   const PW = 'Tq8vLm2Xz9';
-  appendFileSync(join(root, 'codex/session_index.jsonl'), JSON.stringify({ id: 'c1', thread_name: `服务器 203.0.113.7 root 密码 ${PW}` }) + '\n');
+  appendFileSync(
+    join(root, 'codex/session_index.jsonl'),
+    JSON.stringify({ id: 'c1', thread_name: `服务器 203.0.113.7 root 密码 ${PW}` }) + '\n',
+  );
   const store = new Store(':memory:');
   await store.index({ claude: join(root, 'claude'), codex: join(root, 'codex') });
 
@@ -130,14 +133,18 @@ test('服务器接口只读：结果缓存 30 秒，连接失败返回 502，没
     warnings: [],
   });
   const srv = createServer(
-    createApp(new Store(':memory:'), { claude: join(EMPTY, '.claude') }, {
-      servers: () => [{ name: 'demo', host: '203.0.113.7', user: 'root', port: 22 }],
-      checkServer: async () => {
-        calls++;
-        if (fail) throw new Error('Permission denied (publickey)');
-        return report(calls === 1 ? 'r1' : 'r2') as any;
+    createApp(
+      new Store(':memory:'),
+      { claude: join(EMPTY, '.claude') },
+      {
+        servers: () => [{ name: 'demo', host: '203.0.113.7', user: 'root', port: 22 }],
+        checkServer: async () => {
+          calls++;
+          if (fail) throw new Error('Permission denied (publickey)');
+          return report(calls === 1 ? 'r1' : 'r2') as any;
+        },
       },
-    }),
+    ),
   );
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
@@ -148,13 +155,18 @@ test('服务器接口只读：结果缓存 30 秒，连接失败返回 502，没
     assert.equal(b.status.releases.current, 'r1');
     const c = await (await fetch(base + '/api/server?fresh=1')).json();
     assert.equal(calls, 2);
-    assert.deepEqual(c.history.map((h: any) => h.release), ['r2', 'r1'], '线上版本变化被记录');
+    assert.deepEqual(
+      c.history.map((h: any) => h.release),
+      ['r2', 'r1'],
+      '线上版本变化被记录',
+    );
     assert.equal(a.server.name, 'demo');
     fail = true;
     const e = await fetch(base + '/api/server?fresh=1');
     assert.equal(e.status, 502);
     assert.match((await e.json()).error, /publickey/);
-    for (const p of ['/api/server', '/api/server/rollback']) assert.equal((await fetch(base + p, { method: 'POST', headers: { 'x-yuchao': '1' } })).status, 404, p);
+    for (const p of ['/api/server', '/api/server/rollback'])
+      assert.equal((await fetch(base + p, { method: 'POST', headers: { 'x-yuchao': '1' } })).status, 404, p);
   } finally {
     srv.close();
   }
@@ -164,7 +176,18 @@ test('网页文件：挡住 .. 、反斜杠和盘符，找不到的路径回到 
   const reads: string[] = [];
   const read = (rel: string) => (reads.push(rel), rel === 'index.html' || rel === 'assets/app.js' ? Buffer.from(rel) : null);
   const call = (path: string) => {
-    const res: any = { status: 0, type: '', body: '', writeHead(s: number, h?: any) { this.status = s; this.type = h?.['content-type'] ?? ''; }, end(b?: any) { this.body = String(b ?? ''); } };
+    const res: any = {
+      status: 0,
+      type: '',
+      body: '',
+      writeHead(s: number, h?: any) {
+        this.status = s;
+        this.type = h?.['content-type'] ?? '';
+      },
+      end(b?: any) {
+        this.body = String(b ?? '');
+      },
+    };
     serveStatic(path, res, read);
     return res;
   };

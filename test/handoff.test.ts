@@ -5,7 +5,13 @@ import { redact } from '../src/core/scan.ts';
 
 type M = { seq: number; ts: string | null; role: any; toolName: string | null; text: string };
 let seq = 0;
-const m = (role: string, text: string, toolName: string | null = null): M => ({ seq: seq++, ts: '2026-11-09T08:00:00Z', role, toolName, text });
+const m = (role: string, text: string, toolName: string | null = null): M => ({
+  seq: seq++,
+  ts: '2026-11-09T08:00:00Z',
+  role,
+  toolName,
+  text,
+});
 
 const PW = 'Tq8v' + 'Lm2Xz9Q';
 const session = {

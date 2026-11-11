@@ -36,14 +36,22 @@ export function HandoffPanel({ sessionId, agent, raw, onClose }: { sessionId: st
   return (
     // 点遮罩关闭只是鼠标用户的快捷方式；键盘用户用 Esc（<dialog> 原生支持）或右上角的关闭按钮
     // biome-ignore lint/a11y/useKeyWithClickEvents: 见上一行
-    <dialog ref={ref} className="handoff" onClose={onClose} onClick={(e) => e.target === ref.current && ref.current.close()} aria-labelledby="handoff-title">
+    <dialog
+      ref={ref}
+      className="handoff"
+      onClose={onClose}
+      onClick={(e) => e.target === ref.current && ref.current.close()}
+      aria-labelledby="handoff-title"
+    >
       <header className="handoff-head">
         <div>
           <span className="kicker">接力</span>
           <h2 id="handoff-title">
             换一个 agent 接着做<span className="dot">。</span>
           </h2>
-          <p>额度用完、上下文太长、或者想换个模型试试时用。鱼巢在本地从会话记录里整理出目标、改过的文件、命令和报错，不调用大模型，也不花钱。</p>
+          <p>
+            额度用完、上下文太长、或者想换个模型试试时用。鱼巢在本地从会话记录里整理出目标、改过的文件、命令和报错，不调用大模型，也不花钱。
+          </p>
         </div>
         <button type="button" className="icon-btn" onClick={() => ref.current?.close()} aria-label="关闭">
           <Icon name="x" />
@@ -90,10 +98,20 @@ export function HandoffPanel({ sessionId, agent, raw, onClose }: { sessionId: st
           </ul>
           <div className="handoff-body">
             <fieldset className="seg small" aria-label="显示方式">
-              <button type="button" className={view === 'preview' ? 'on' : ''} aria-pressed={view === 'preview'} onClick={() => setView('preview')}>
+              <button
+                type="button"
+                className={view === 'preview' ? 'on' : ''}
+                aria-pressed={view === 'preview'}
+                onClick={() => setView('preview')}
+              >
                 预览
               </button>
-              <button type="button" className={view === 'source' ? 'on' : ''} aria-pressed={view === 'source'} onClick={() => setView('source')}>
+              <button
+                type="button"
+                className={view === 'source' ? 'on' : ''}
+                aria-pressed={view === 'source'}
+                onClick={() => setView('source')}
+              >
                 原文
               </button>
             </fieldset>
@@ -121,10 +139,18 @@ function CopyBig({ text }: { text: string }) {
     return () => clearTimeout(t);
   }, [done]);
   return (
-    <button type="button" className="btn cta" onClick={() => navigator.clipboard.writeText(text).then(() => setDone(true), () => {})}>
+    <button
+      type="button"
+      className="btn cta"
+      onClick={() =>
+        navigator.clipboard.writeText(text).then(
+          () => setDone(true),
+          () => {},
+        )
+      }
+    >
       <Icon name={done ? 'check' : 'copy'} />
       {done ? '已复制，去粘贴吧' : '复制交接说明'}
     </button>
   );
 }
-

@@ -13,10 +13,13 @@ export function ServerView({ raw }: { raw: boolean }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    serverApi.list().then((list) => {
-      setServers(list);
-      setName(list[0]?.name ?? null);
-    }, (e) => setError(e.message));
+    serverApi.list().then(
+      (list) => {
+        setServers(list);
+        setName(list[0]?.name ?? null);
+      },
+      (e) => setError(e.message),
+    );
   }, []);
 
   if (error) return <ErrorPage title="服务器" error={error} />;
@@ -24,7 +27,11 @@ export function ServerView({ raw }: { raw: boolean }) {
 
   return (
     <div className="page configs server-page">
-      <PageHeader kicker="05 · 服务器" title="服务器" desc="鱼巢用一把专用密钥登录服务器，这把密钥在服务器上被锁定为只能运行一个只读的状态脚本：不能执行其他命令，也不能转发端口。所以这里只能看，不能改。日志里的密码和访客 IP 默认打码。" />
+      <PageHeader
+        kicker="05 · 服务器"
+        title="服务器"
+        desc="鱼巢用一把专用密钥登录服务器，这把密钥在服务器上被锁定为只能运行一个只读的状态脚本：不能执行其他命令，也不能转发端口。所以这里只能看，不能改。日志里的密码和访客 IP 默认打码。"
+      />
       {servers.length === 0 ? (
         <div className="empty">
           还没有添加服务器。在命令行里运行：
@@ -37,7 +44,13 @@ export function ServerView({ raw }: { raw: boolean }) {
           {servers.length > 1 && (
             <fieldset className="seg" aria-label="选择服务器">
               {servers.map((s) => (
-                <button type="button" key={s.name} className={s.name === name ? 'on' : ''} aria-pressed={s.name === name} onClick={() => setName(s.name)}>
+                <button
+                  type="button"
+                  key={s.name}
+                  className={s.name === name ? 'on' : ''}
+                  aria-pressed={s.name === name}
+                  onClick={() => setName(s.name)}
+                >
                   {s.name}
                 </button>
               ))}
@@ -59,13 +72,23 @@ function Report({ name, raw }: { name: string; raw: boolean }) {
     (fresh: boolean) => {
       setLoading(true);
       setError(null);
-      serverApi.status(name, raw, fresh).then(setReport, (e) => setError(e.message)).finally(() => setLoading(false));
+      serverApi
+        .status(name, raw, fresh)
+        .then(setReport, (e) => setError(e.message))
+        .finally(() => setLoading(false));
     },
     [name, raw],
   );
   useEffect(() => load(false), [load]);
 
-  if (!report) return error ? <Empty icon="alert" title="连接失败">{error}</Empty> : <Skeleton lines={8} />;
+  if (!report)
+    return error ? (
+      <Empty icon="alert" title="连接失败">
+        {error}
+      </Empty>
+    ) : (
+      <Skeleton lines={8} />
+    );
   const s = report.status;
   const diskPct = Math.round((s.disk.used / s.disk.total) * 100);
   const memPct = s.memory.total && s.memory.available !== null ? Math.round((1 - s.memory.available / s.memory.total) * 100) : null;
@@ -76,7 +99,8 @@ function Report({ name, raw }: { name: string; raw: boolean }) {
       <div className="server-head">
         <b>{report.server.name}</b>
         <span className="meta">
-          {report.server.user}@{report.server.host} · {s.host} · 已运行 {uptime(s.uptime)} · 负载 {s.load.map((x) => x.toFixed(2)).join(' ')}
+          {report.server.user}@{report.server.host} · {s.host} · 已运行 {uptime(s.uptime)} · 负载{' '}
+          {s.load.map((x) => x.toFixed(2)).join(' ')}
         </span>
         <span className="meta">检查于 {when(report.checkedAt)}</span>
         <button type="button" onClick={() => load(true)} disabled={loading}>
@@ -130,7 +154,10 @@ function Report({ name, raw }: { name: string; raw: boolean }) {
       <div className="timeline-layout">
         <section>
           <h3>
-            发布记录 <span className="meta">共 {s.releases.total} 个 release，显示最近 {s.releases.items.length} 个</span>
+            发布记录{' '}
+            <span className="meta">
+              共 {s.releases.total} 个 release，显示最近 {s.releases.items.length} 个
+            </span>
           </h3>
           <ol className="timeline">
             {s.releases.items.map((r) => (
@@ -146,7 +173,10 @@ function Report({ name, raw }: { name: string; raw: boolean }) {
           {report.history.length > 0 && (
             <p className="meta">
               鱼巢观察到的上线记录：
-              {report.history.slice(0, 6).map((h) => `${when(h.seenAt)} ${h.release}`).join('；')}
+              {report.history
+                .slice(0, 6)
+                .map((h) => `${when(h.seenAt)} ${h.release}`)
+                .join('；')}
             </p>
           )}
         </section>

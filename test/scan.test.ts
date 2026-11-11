@@ -11,7 +11,10 @@ const PW = 'Tq8vLm2Xz9';
 const BEGIN = (kind: string) => `-----BEGIN ${kind} PRIV` + 'ATE KEY-----';
 const END = (kind: string) => `-----END ${kind} PRIV` + 'ATE KEY-----';
 
-const ids = (text: string) => scanText(text).map((m) => m.ruleId).sort();
+const ids = (text: string) =>
+  scanText(text)
+    .map((m) => m.ruleId)
+    .sort();
 
 test('中文描述里的服务器 IP、用户名和密码，识别为服务器登录凭据', () => {
   const [m] = scanText(`我的服务器ip 203.0.113.7 用户名root 密码 ${PW} 你先连接`);
@@ -87,7 +90,11 @@ test('上下文里的其他秘密也会被打码', () => {
 });
 
 test('多行私钥的整段正文都会被打码，上下文里不出现任何一行', () => {
-  const lines = ['b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAAB', 'QyNTUxOQAAACAQzFw2hR2DuMHeGGtAXbztO0Pq0KrS8AomG9x', 'AAAEA7kd93LmQp2Zx8Vb4Nc6Rt1Yw0Hs5Jf3Gu7Ki9Lo2Mn4P'];
+  const lines = [
+    'b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAAB',
+    'QyNTUxOQAAACAQzFw2hR2DuMHeGGtAXbztO0Pq0KrS8AomG9x',
+    'AAAEA7kd93LmQp2Zx8Vb4Nc6Rt1Yw0Hs5Jf3Gu7Ki9Lo2Mn4P',
+  ];
   for (const sep of ['\n', '\\n', '\r\n']) {
     const text = `cat id_ed25519\n${BEGIN('OPENSSH')}${sep}${lines.join(sep)}${sep}${END('OPENSSH')}`;
     const [m] = scanText(text);
@@ -127,7 +134,10 @@ test('代码里成组写出的 IP、用户名、密码识别为服务器凭据�
   const pw = 'hX7k' + 'Pq2Lm9';
   const text = `client.connect('203.0.113.7', 'root', '${pw}')\n# 生成本地强密码（base64url 字符，无 shell 特殊字符）`;
   const ms = scanText(text);
-  assert.deepEqual(ms.map((m) => m.ruleId), ['server_credential']);
+  assert.deepEqual(
+    ms.map((m) => m.ruleId),
+    ['server_credential'],
+  );
   assert.ok(!ms[0].context.includes(pw));
   assert.ok(!redact(text).includes(pw));
 });

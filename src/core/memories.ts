@@ -91,7 +91,8 @@ export function readWorkBuddyMemories(dir: string): AgentMemory[] {
   const notes = WORKBUDDY_NOTES.map((n) => ({ ...n, path: join(dir, n.file) }));
   try {
     for (const f of readdirSync(join(dir, 'memory'))) {
-      if (f.endsWith('_memory.md')) notes.push({ file: f, type: 'user', description: 'WorkBuddy 整理的用户画像', path: join(dir, 'memory', f) });
+      if (f.endsWith('_memory.md'))
+        notes.push({ file: f, type: 'user', description: 'WorkBuddy 整理的用户画像', path: join(dir, 'memory', f) });
     }
   } catch {
     // 没有 memory 目录

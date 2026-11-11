@@ -40,14 +40,18 @@ function versionLine(v: ConfigVersion) {
 
 function printDiff(oldText: string, newText: string, oldName: string, newName: string) {
   console.log(dim(`--- ${oldName}\n+++ ${newName}`));
-  for (const [text, name] of [[oldText, oldName], [newText, newName]]) {
+  for (const [text, name] of [
+    [oldText, oldName],
+    [newText, newName],
+  ]) {
     if (hasNul(text)) return console.log(red(`${name} 含有空字节（已损坏），无法逐行对比。`));
   }
   const d = diffText(redactConfig(oldText), redactConfig(newText));
   if (!d.hunks.length) return console.log('内容相同。');
   for (const h of d.hunks) {
     console.log(cyan(`@@ 原第 ${h.oldStart} 行 / 新第 ${h.newStart} 行 @@`));
-    for (const l of h.lines) console.log(l.kind === 'add' ? green('+ ' + l.text) : l.kind === 'del' ? red('- ' + l.text) : dim('  ' + l.text));
+    for (const l of h.lines)
+      console.log(l.kind === 'add' ? green('+ ' + l.text) : l.kind === 'del' ? red('- ' + l.text) : dim('  ' + l.text));
   }
   console.log(dim(`共新增 ${d.added} 行，删除 ${d.removed} 行（key、密码等已打码）`));
 }
@@ -71,7 +75,13 @@ export function runConfig(store: Store, args: string[], flags: ConfigFlags) {
           console.log(`${dim(s.name)} ${dim('（不存在）')}`);
           continue;
         }
-        const state = !s.exists ? red('已删除') : s.error ? red(`当前文件损坏：${s.error}`) : s.changed ? color('33')('有未记录的修改') : green('正常');
+        const state = !s.exists
+          ? red('已删除')
+          : s.error
+            ? red(`当前文件损坏：${s.error}`)
+            : s.changed
+              ? color('33')('有未记录的修改')
+              : green('正常');
         console.log(`${bold(s.name)} ${state} ${dim(`${s.versions} 个版本${s.latest ? '，最近 ' + day(s.latest.capturedAt) : ''}`)}`);
       }
       console.log(dim('\nyuchao config import 导入旁边的旧备份；yuchao config log <文件> 查看历史'));
@@ -84,7 +94,9 @@ export function runConfig(store: Store, args: string[], flags: ConfigFlags) {
     }
     case 'import': {
       const r = cfg.importBackups();
-      console.log(`导入 ${r.imported} 个旧备份（其中 ${r.broken} 个格式损坏），${r.duplicates} 个和已有版本内容相同已跳过。原备份文件没有改动。`);
+      console.log(
+        `导入 ${r.imported} 个旧备份（其中 ${r.broken} 个格式损坏），${r.duplicates} 个和已有版本内容相同已跳过。原备份文件没有改动。`,
+      );
       break;
     }
     case 'log': {

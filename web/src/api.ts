@@ -106,7 +106,8 @@ export const api = {
     get<SearchHit[]>(`/api/search?${qs({ q, agent, tools: flag(tools), raw: flag(raw) })}`),
   index: () => get<IndexResult>('/api/index', { method: 'POST' }),
   scan: (all?: boolean) => get<AuditResult>(`/api/scan?${qs({ all: flag(all) })}`),
-  ignore: (fingerprint: string, ignored: boolean) => get<{ ok: true }>(`/api/scan/ignore/${fingerprint}`, { method: ignored ? 'PUT' : 'DELETE' }),
+  ignore: (fingerprint: string, ignored: boolean) =>
+    get<{ ok: true }>(`/api/scan/ignore/${fingerprint}`, { method: ignored ? 'PUT' : 'DELETE' }),
 };
 
 export interface ActivityStats {
@@ -195,7 +196,11 @@ export interface ConfigDiff {
   diff: {
     added: number;
     removed: number;
-    hunks: { oldStart: number; newStart: number; lines: { kind: 'same' | 'add' | 'del'; text: string; oldNo: number | null; newNo: number | null }[] }[];
+    hunks: {
+      oldStart: number;
+      newStart: number;
+      lines: { kind: 'same' | 'add' | 'del'; text: string; oldNo: number | null; newNo: number | null }[];
+    }[];
   } | null;
 }
 
@@ -244,7 +249,8 @@ export interface ServerReport {
 
 export const serverApi = {
   list: () => get<ServerConfig[]>('/api/servers'),
-  status: (name: string, raw?: boolean, fresh?: boolean) => get<ServerReport>(`/api/server?${qs({ name, raw: flag(raw), fresh: flag(fresh) })}`),
+  status: (name: string, raw?: boolean, fresh?: boolean) =>
+    get<ServerReport>(`/api/server?${qs({ name, raw: flag(raw), fresh: flag(fresh) })}`),
 };
 
 export interface Stats {

@@ -27,14 +27,17 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload 是「标记误报后重新扫描」的触发计数器，函数体里不需要读它
   useEffect(() => {
     setResult(null);
-    Promise.all([api.scan(showIgnored), showIgnored ? api.scan(false) : null]).then(([all, active]) => {
-      setResult(all);
-      // 显示全部时，用「全部」减去「未忽略」得到已忽略的指纹
-      if (active) {
-        const live = new Set(active.findings.map((f) => f.fingerprint));
-        setIgnored(new Set(all.findings.filter((f) => !live.has(f.fingerprint)).map((f) => f.fingerprint)));
-      } else setIgnored(new Set());
-    }, (e) => setError(e.message));
+    Promise.all([api.scan(showIgnored), showIgnored ? api.scan(false) : null]).then(
+      ([all, active]) => {
+        setResult(all);
+        // 显示全部时，用「全部」减去「未忽略」得到已忽略的指纹
+        if (active) {
+          const live = new Set(active.findings.map((f) => f.fingerprint));
+          setIgnored(new Set(all.findings.filter((f) => !live.has(f.fingerprint)).map((f) => f.fingerprint)));
+        } else setIgnored(new Set());
+      },
+      (e) => setError(e.message),
+    );
   }, [showIgnored, reload]);
 
   async function toggleIgnore(f: Finding) {
@@ -74,8 +77,8 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
         </div>
         <div className="stat muted">
           <span>
-            扫描了 {result.scannedMessages.toLocaleString()} 条消息和 {result.scannedTitles} 个会话标题，用时 {(result.ms / 1000).toFixed(1)} 秒
-            {result.ignored > 0 && !showIgnored && `；${result.ignored} 处已标记为误报`}
+            扫描了 {result.scannedMessages.toLocaleString()} 条消息和 {result.scannedTitles} 个会话标题，用时{' '}
+            {(result.ms / 1000).toFixed(1)} 秒{result.ignored > 0 && !showIgnored && `；${result.ignored} 处已标记为误报`}
           </span>
           <label className="check">
             <input type="checkbox" checked={showIgnored} onChange={(e) => setShowIgnored(e.target.checked)} />
@@ -83,7 +86,6 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
           </label>
         </div>
       </section>
-
 
       {result.findings.length === 0 && (
         <Empty icon="shield" title="没有发现泄露">

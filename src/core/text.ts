@@ -37,7 +37,10 @@ export function isCodexContext(text: string): boolean {
 
 /** 去掉图片占位标签，例如 `<image name=[Image #1] path="..."></image>` */
 export function stripImageTags(text: string): string {
-  return text.replace(/<image\b[^>]*>/g, '').replace(/<\/image>/g, '').trim();
+  return text
+    .replace(/<image\b[^>]*>/g, '')
+    .replace(/<\/image>/g, '')
+    .trim();
 }
 
 /** Codex 在用户附带文件时，会把文件清单拼在前面，真正的请求放在 `## My request:` 之后 */

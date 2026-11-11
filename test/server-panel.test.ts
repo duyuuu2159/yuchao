@@ -3,7 +3,19 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assess, authorizedKeysLine, checkServer, deployHistory, ensureKey, loadServers, parseTarget, recordDeploy, saveServers, sshArgs, type RemoteStatus } from '../src/core/server.ts';
+import {
+  assess,
+  authorizedKeysLine,
+  checkServer,
+  deployHistory,
+  ensureKey,
+  loadServers,
+  parseTarget,
+  recordDeploy,
+  saveServers,
+  sshArgs,
+  type RemoteStatus,
+} from '../src/core/server.ts';
 import { Store } from '../src/core/store.ts';
 
 const SERVER = { name: 'demo', host: '203.0.113.7', user: 'root', port: 22 };
@@ -33,7 +45,7 @@ function sample(over: Partial<RemoteStatus> = {}): RemoteStatus {
         { name: 'r63', mtime: 1794190000, current: false },
       ],
     },
-    serviceLog: ['2026-11-09T05:37:36+0000 host systemd[1]: duyuuu.service: Failed with result \'exit-code\'.'],
+    serviceLog: ["2026-11-09T05:37:36+0000 host systemd[1]: duyuuu.service: Failed with result 'exit-code'."],
     nginxErrors: [`2026/11/09 connect() failed, client: 198.51.100.23, request: "GET /?password=${PW}"`],
     ...over,
   };
@@ -58,7 +70,10 @@ test('地址解析：只接受 用户名@主机[:端口]，挡住伪装成 ssh �
 
 test('authorized_keys 这一行把密钥锁死在只读脚本上', () => {
   const line = authorizedKeysLine('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample= someone@pc\n');
-  assert.equal(line, 'restrict,command="/usr/bin/python3 /usr/local/lib/yuchao/status.py" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample= yuchao-readonly');
+  assert.equal(
+    line,
+    'restrict,command="/usr/bin/python3 /usr/local/lib/yuchao/status.py" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample= yuchao-readonly',
+  );
   assert.throws(() => authorizedKeysLine('ssh-rsa AAAA x'));
   assert.throws(() => authorizedKeysLine('ssh-ed25519 AAAA" ,command="sh'));
 });
@@ -85,8 +100,13 @@ test('检查服务器：解析状态、挑出问题，日志里的密码和访�
 });
 
 test('服务挂了、应用打不开要标成严重问题', () => {
-  const s = sample({ services: [{ name: 'duyuuu', active: 'failed', sub: 'failed', since: null, restarts: 3, pid: 0 }], app: { url: 'x', status: null, ms: null, error: 'URLError' } });
-  const levels = assess(s, { status: 502, ms: 30 }).filter((w) => w.level === 'bad').map((w) => w.text);
+  const s = sample({
+    services: [{ name: 'duyuuu', active: 'failed', sub: 'failed', since: null, restarts: 3, pid: 0 }],
+    app: { url: 'x', status: null, ms: null, error: 'URLError' },
+  });
+  const levels = assess(s, { status: 502, ms: 30 })
+    .filter((w) => w.level === 'bad')
+    .map((w) => w.text);
   assert.deepEqual(levels, ['服务 duyuuu 不在运行（failed）', '应用本机访问失败：URLError', '公网访问失败：502']);
 });
 
@@ -101,7 +121,10 @@ test('上线记录：线上版本变化时才记一笔', () => {
   assert.equal(recordDeploy(store, 'demo', 'r63', '2026-11-09T02:00:00Z'), false);
   assert.equal(recordDeploy(store, 'demo', 'r64', '2026-11-09T03:00:00Z'), true);
   assert.equal(recordDeploy(store, 'demo', null), false);
-  assert.deepEqual(deployHistory(store, 'demo').map((h) => h.release), ['r64', 'r63']);
+  assert.deepEqual(
+    deployHistory(store, 'demo').map((h) => h.release),
+    ['r64', 'r63'],
+  );
 });
 
 test('服务器列表的保存和读取；专用密钥只生成一次', async () => {

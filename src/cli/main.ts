@@ -118,7 +118,9 @@ async function run(store: Store) {
           if (process.stderr.isTTY) process.stderr.write(`\r索引中 ${done}/${total}`);
         });
         if (process.stderr.isTTY) process.stderr.write('\n');
-        console.log(`扫描 ${r.scanned} 个文件：新建或更新 ${r.indexed}，未变化跳过 ${r.skipped}，已删除 ${r.removed}，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
+        console.log(
+          `扫描 ${r.scanned} 个文件：新建或更新 ${r.indexed}，未变化跳过 ${r.skipped}，已删除 ${r.removed}，用时 ${(r.ms / 1000).toFixed(1)} 秒`,
+        );
         for (const e of r.errors) console.log(`  解析失败 ${e.path}：${e.error}`);
         // 顺手给配置文件拍快照：每次索引都会经过这里，配置的变化就能自然积累成历史
         const snap = new ConfigManager(store, defaultSourceDirs()).snapshot();
@@ -183,7 +185,9 @@ async function run(store: Store) {
         }
         const high = r.findings.filter((f) => f.severity === 'high');
         console.log(`扫描了 ${r.scannedMessages} 条消息和 ${r.scannedTitles} 个会话标题，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
-        console.log(`发现 ${r.findings.length} 个不同的秘密，其中高风险 ${high.length} 个` + (r.ignored ? `；另有 ${r.ignored} 处已标记为误报` : ''));
+        console.log(
+          `发现 ${r.findings.length} 个不同的秘密，其中高风险 ${high.length} 个` + (r.ignored ? `；另有 ${r.ignored} 处已标记为误报` : ''),
+        );
         for (const f of r.findings) {
           const sev = f.severity === 'high' ? color('31')('高风险') : color('33')('中风险');
           console.log(`
@@ -201,19 +205,21 @@ async function run(store: Store) {
         runConfig(store, rest, values);
         break;
       case 'handoff': {
-      const { buildHandoff } = await import('../core/handoff.ts');
-      if (values.to && !isAgentKind(values.to)) fail(`未知的 agent：${values.to}（可选 ${AGENT_KINDS.join('、')}）`);
-      const { latestWorkSession } = await import('../core/handoff.ts');
-      const id = rest[0] === 'latest' ? latestWorkSession(store) : rest[0];
-      if (!id) fail('用法：yuchao handoff <会话id|latest> [--to codex]（会话 id 可以用 yuchao sessions 查看）');
-      const h = buildHandoff(store, id, { to: values.to });
-      if (!h) fail(`找不到会话 ${id}`);
-      console.log(h.markdown);
-      console.error(dim(`
-约 ${h.chars} 字、${h.tokens} token。可以重定向到文件，或者用 | clip 复制到剪贴板。`));
-      break;
-    }
-    case 'server': {
+        const { buildHandoff } = await import('../core/handoff.ts');
+        if (values.to && !isAgentKind(values.to)) fail(`未知的 agent：${values.to}（可选 ${AGENT_KINDS.join('、')}）`);
+        const { latestWorkSession } = await import('../core/handoff.ts');
+        const id = rest[0] === 'latest' ? latestWorkSession(store) : rest[0];
+        if (!id) fail('用法：yuchao handoff <会话id|latest> [--to codex]（会话 id 可以用 yuchao sessions 查看）');
+        const h = buildHandoff(store, id, { to: values.to });
+        if (!h) fail(`找不到会话 ${id}`);
+        console.log(h.markdown);
+        console.error(
+          dim(`
+约 ${h.chars} 字、${h.tokens} token。可以重定向到文件，或者用 | clip 复制到剪贴板。`),
+        );
+        break;
+      }
+      case 'server': {
         const { runServer } = await import('./server.ts');
         await runServer(store, rest, values);
         break;

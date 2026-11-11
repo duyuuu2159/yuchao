@@ -59,7 +59,16 @@ type Runner = (file: string, args: string[], timeoutMs: number) => Promise<strin
 const execRunner: Runner = (file, args, timeoutMs) =>
   new Promise((resolve, reject) => {
     execFile(file, args, { timeout: timeoutMs, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(String(stderr || err.message).trim().split('\n').slice(-3).join('\n')));
+      if (err)
+        reject(
+          new Error(
+            String(stderr || err.message)
+              .trim()
+              .split('\n')
+              .slice(-3)
+              .join('\n'),
+          ),
+        );
       else resolve(stdout);
     });
   });
@@ -81,10 +90,33 @@ export async function ensureKey(path = keyPath(), run: Runner = execRunner): Pro
  * 远端命令随便写什么都会被 authorized_keys 里的 command 替换掉，这里写 status 只是为了可读
  */
 export function sshArgs(s: ServerConfig, key = keyPath()): string[] {
-  return ['-i', key, '-p', String(s.port), '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=8', '--', `${s.user}@${s.host}`, 'status'];
+  return [
+    '-i',
+    key,
+    '-p',
+    String(s.port),
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'IdentitiesOnly=yes',
+    '-o',
+    'StrictHostKeyChecking=yes',
+    '-o',
+    'ConnectTimeout=8',
+    '--',
+    `${s.user}@${s.host}`,
+    'status',
+  ];
 }
 
-const Service = z.object({ name: z.string(), active: z.string(), sub: z.string(), since: z.string().nullable(), restarts: z.number(), pid: z.number() });
+const Service = z.object({
+  name: z.string(),
+  active: z.string(),
+  sub: z.string(),
+  since: z.string().nullable(),
+  restarts: z.number(),
+  pid: z.number(),
+});
 export const StatusSchema = z.object({
   version: z.literal(1),
   host: z.string(),
@@ -127,10 +159,12 @@ export function assess(s: RemoteStatus, publicSite: ServerReport['publicSite']):
   if (publicSite && publicSite.status !== 200) out.push({ level: 'bad', text: `公网访问失败：${publicSite.status ?? publicSite.error}` });
   const used = s.disk.used / s.disk.total;
   if (used >= 0.9) out.push({ level: 'bad', text: `磁盘已用 ${Math.round(used * 100)}%` });
-  else if (used >= 0.8) out.push({ level: 'warn', text: `磁盘已用 ${Math.round(used * 100)}%，release 目录有 ${s.releases.total} 个，可以清理旧的` });
+  else if (used >= 0.8)
+    out.push({ level: 'warn', text: `磁盘已用 ${Math.round(used * 100)}%，release 目录有 ${s.releases.total} 个，可以清理旧的` });
   const failures = s.serviceLog.filter((l) => /Failed with result/.test(l)).length;
   if (failures) out.push({ level: 'warn', text: `最近 7 天服务异常退出 ${failures} 次` });
-  if (s.memory.total && s.memory.available !== null && s.memory.available / s.memory.total < 0.1) out.push({ level: 'warn', text: '可用内存不足 10%' });
+  if (s.memory.total && s.memory.available !== null && s.memory.available / s.memory.total < 0.1)
+    out.push({ level: 'warn', text: '可用内存不足 10%' });
   return out;
 }
 
@@ -153,7 +187,10 @@ async function probePublic(url: string): Promise<ServerReport['publicSite']> {
 
 export async function checkServer(server: ServerConfig, opts: { run?: Runner; key?: string; raw?: boolean } = {}): Promise<ServerReport> {
   const run = opts.run ?? execRunner;
-  const [out, publicSite] = await Promise.all([run('ssh', sshArgs(server, opts.key), 20_000), server.url ? probePublic(server.url) : Promise.resolve(null)]);
+  const [out, publicSite] = await Promise.all([
+    run('ssh', sshArgs(server, opts.key), 20_000),
+    server.url ? probePublic(server.url) : Promise.resolve(null),
+  ]);
   let json: unknown;
   try {
     json = JSON.parse(out);
@@ -179,7 +216,9 @@ CREATE TABLE IF NOT EXISTS server_deploys (
 export function recordDeploy(store: Store, server: string, release: string | null, at = new Date().toISOString()): boolean {
   if (!release) return false;
   store.db.exec(SCHEMA);
-  const last = store.db.prepare('SELECT release FROM server_deploys WHERE server = ? ORDER BY id DESC LIMIT 1').get(server) as { release: string } | undefined;
+  const last = store.db.prepare('SELECT release FROM server_deploys WHERE server = ? ORDER BY id DESC LIMIT 1').get(server) as
+    | { release: string }
+    | undefined;
   if (last?.release === release) return false;
   store.db.prepare('INSERT INTO server_deploys(server, release, seen_at) VALUES (?, ?, ?)').run(server, release, at);
   return true;
@@ -187,5 +226,7 @@ export function recordDeploy(store: Store, server: string, release: string | nul
 
 export function deployHistory(store: Store, server: string, limit = 50): { release: string; seenAt: string }[] {
   store.db.exec(SCHEMA);
-  return (store.db.prepare('SELECT release, seen_at FROM server_deploys WHERE server = ? ORDER BY id DESC LIMIT ?').all(server, limit) as any[]).map((r) => ({ release: r.release, seenAt: r.seen_at }));
+  return (
+    store.db.prepare('SELECT release, seen_at FROM server_deploys WHERE server = ? ORDER BY id DESC LIMIT ?').all(server, limit) as any[]
+  ).map((r) => ({ release: r.release, seenAt: r.seen_at }));
 }

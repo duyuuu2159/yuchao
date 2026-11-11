@@ -81,13 +81,20 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
           limit: Math.min(Number(url.searchParams.get('limit') ?? 200), 1000),
           offset: Number(url.searchParams.get('offset') ?? 0),
         });
-        return json(res, 200, rows.map((r) => ({ ...r, title: safe(r.title) })));
+        return json(
+          res,
+          200,
+          rows.map((r) => ({ ...r, title: safe(r.title) })),
+        );
       }
 
       // 接力：只读，本地生成交接说明
       if (path.startsWith('/api/handoff/') && req.method === 'GET') {
         const ref = decodeURIComponent(path.slice('/api/handoff/'.length));
-        const h = buildHandoff(store, ref === 'latest' ? (latestWorkSession(store) ?? '') : ref, { to: url.searchParams.get('to') ?? undefined, raw });
+        const h = buildHandoff(store, ref === 'latest' ? (latestWorkSession(store) ?? '') : ref, {
+          to: url.searchParams.get('to') ?? undefined,
+          raw,
+        });
         return h ? json(res, 200, h) : json(res, 404, { error: '找不到这个会话' });
       }
 

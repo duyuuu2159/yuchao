@@ -3,7 +3,12 @@ import { configApi, type ConfigDiff, type ConfigStatus, type ConfigVersion } fro
 import { when } from './format.ts';
 import { Cmd, ErrorPage, LoadingPage, PageHeader, Skeleton } from './ui.tsx';
 
-const SOURCE_LABEL: Record<ConfigVersion['source'], string> = { snapshot: '快照', backup: '旧备份', 'before-restore': '回滚前', restore: '回滚' };
+const SOURCE_LABEL: Record<ConfigVersion['source'], string> = {
+  snapshot: '快照',
+  backup: '旧备份',
+  'before-restore': '回滚前',
+  restore: '回滚',
+};
 
 export function ConfigView() {
   const [files, setFiles] = useState<ConfigStatus[] | null>(null);
@@ -11,10 +16,13 @@ export function ConfigView() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    configApi.status().then((fs) => {
-      setFiles(fs);
-      setPath((p) => p ?? fs.find((f) => f.versions > 0)?.path ?? null);
-    }, (e) => setError(e.message));
+    configApi.status().then(
+      (fs) => {
+        setFiles(fs);
+        setPath((p) => p ?? fs.find((f) => f.versions > 0)?.path ?? null);
+      },
+      (e) => setError(e.message),
+    );
   }, []);
 
   if (error) return <ErrorPage title="配置管家" error={error} />;
@@ -22,10 +30,20 @@ export function ConfigView() {
 
   return (
     <div className="page configs">
-      <PageHeader kicker="04 · 配置" title="配置管家" desc="记录各 agent 配置文件的每个版本，旁边散落的旧备份也整理进同一条时间线。内容里的 key、密码已打码。回滚会改写配置文件，只能在命令行里执行。" />
+      <PageHeader
+        kicker="04 · 配置"
+        title="配置管家"
+        desc="记录各 agent 配置文件的每个版本，旁边散落的旧备份也整理进同一条时间线。内容里的 key、密码已打码。回滚会改写配置文件，只能在命令行里执行。"
+      />
       <div className="config-files">
         {files.map((f) => (
-          <button type="button" key={f.path} className={'config-file' + (f.path === path ? ' active' : '')} disabled={!f.versions} onClick={() => setPath(f.path)}>
+          <button
+            type="button"
+            key={f.path}
+            className={'config-file' + (f.path === path ? ' active' : '')}
+            disabled={!f.versions}
+            onClick={() => setPath(f.path)}
+          >
             <b>{f.name}</b>
             <span className={'state ' + (!f.exists ? 'muted' : f.error ? 'bad' : f.changed ? 'warn' : 'ok')}>
               {!f.exists ? (f.versions ? '已删除' : '不存在') : f.error ? '当前文件损坏' : f.changed ? '有未记录的修改' : '正常'}
@@ -34,9 +52,13 @@ export function ConfigView() {
           </button>
         ))}
       </div>
-      {path ? <Timeline key={path} path={path} /> : <div className="empty">
+      {path ? (
+        <Timeline key={path} path={path} />
+      ) : (
+        <div className="empty">
           还没有记录任何版本。导入旁边散落的旧备份：<Cmd>yuchao config import</Cmd>
-        </div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -72,7 +94,11 @@ function Timeline({ path }: { path: string }) {
       <ol className="timeline">
         {versions.map((v) => (
           <li key={v.id}>
-            <button type="button" className={'version' + (v.id === selected ? ' active' : '') + (v.error ? ' broken' : '')} onClick={() => setSelected(v.id)}>
+            <button
+              type="button"
+              className={'version' + (v.id === selected ? ' active' : '') + (v.error ? ' broken' : '')}
+              onClick={() => setSelected(v.id)}
+            >
               <span className="vid">#{v.id}</span>
               <span className="vtime">{when(v.capturedAt)}</span>
               <span className={'state ' + (v.error ? 'bad' : 'ok')}>{v.error ? '损坏' : '正常'}</span>
@@ -87,18 +113,34 @@ function Timeline({ path }: { path: string }) {
         {selected !== null && (
           <>
             <fieldset className="seg" aria-label="对比对象">
-              <button type="button" className={against === 'previous' ? 'on' : ''} aria-pressed={against === 'previous'} onClick={() => setAgainst('previous')}>
+              <button
+                type="button"
+                className={against === 'previous' ? 'on' : ''}
+                aria-pressed={against === 'previous'}
+                onClick={() => setAgainst('previous')}
+              >
                 相比上一个版本
               </button>
-              <button type="button" className={against === 'current' ? 'on' : ''} aria-pressed={against === 'current'} onClick={() => setAgainst('current')}>
+              <button
+                type="button"
+                className={against === 'current' ? 'on' : ''}
+                aria-pressed={against === 'current'}
+                onClick={() => setAgainst('current')}
+              >
                 和当前文件对比
               </button>
             </fieldset>
-            {versions.find((v) => v.id === selected)?.error && <p className="err">这个版本已损坏：{versions.find((v) => v.id === selected)!.error}</p>}
+            {versions.find((v) => v.id === selected)?.error && (
+              <p className="err">这个版本已损坏：{versions.find((v) => v.id === selected)!.error}</p>
+            )}
             <p className="meta">
               回滚到这个版本：<Cmd>{`yuchao config restore ${selected}`}</Cmd> 先预览改动，确认后加 --yes
             </p>
-            {against === 'previous' && isOldest ? <div className="empty">这是最早的版本，没有可以对比的上一版。</div> : <DiffView diff={diff} />}
+            {against === 'previous' && isOldest ? (
+              <div className="empty">这是最早的版本，没有可以对比的上一版。</div>
+            ) : (
+              <DiffView diff={diff} />
+            )}
           </>
         )}
       </section>

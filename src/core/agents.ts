@@ -80,7 +80,11 @@ export const AGENTS: AgentAdapter[] = [
     sessionFiles: (dir) => walk(join(dir, 'sessions'), (n) => n.endsWith('.jsonl.zstd')),
     parse: (path) => parseDshFile(path),
     // .credentials.yaml 存的是登录凭据，不跟踪，免得把密钥复制进索引库
-    configFiles: (dir) => [join(dir, 'AGENTS.md'), join(dir, 'profiles', 'desktop', 'cordis.yml'), join(dir, 'profiles', 'desktop', 'cordis.patch.yml')],
+    configFiles: (dir) => [
+      join(dir, 'AGENTS.md'),
+      join(dir, 'profiles', 'desktop', 'cordis.yml'),
+      join(dir, 'profiles', 'desktop', 'cordis.patch.yml'),
+    ],
   },
 ];
 

@@ -6,7 +6,12 @@ import { serve } from '../server/main.ts';
 
 /** 用系统默认浏览器打开网址 */
 export function openBrowser(url: string) {
-  const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  const [cmd, args] =
+    process.platform === 'win32'
+      ? ['cmd', ['/c', 'start', '', url]]
+      : process.platform === 'darwin'
+        ? ['open', [url]]
+        : ['xdg-open', [url]];
   execFile(cmd, args, { windowsHide: true }, () => {});
 }
 

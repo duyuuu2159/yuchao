@@ -3,8 +3,24 @@ import { dirname, join } from 'node:path';
 import { AGENT_KINDS, agentLabel, isAgentKind } from '../core/agents.ts';
 import { readMemories } from '../core/memories.ts';
 import { activityStats } from '../core/profile/evidence.ts';
-import { buildProfile, ProfileBuildError, diffProfiles, exportMarkdown, latestProfile, previewPayload, profileHistory, type Scope } from '../core/profile/build.ts';
-import { AnthropicLlm, claudeCodeSettingsPath, DEFAULT_MODEL, pickModel, readClaudeCodeConnection, type AnthropicOptions } from '../core/profile/llm.ts';
+import {
+  buildProfile,
+  ProfileBuildError,
+  diffProfiles,
+  exportMarkdown,
+  latestProfile,
+  previewPayload,
+  profileHistory,
+  type Scope,
+} from '../core/profile/build.ts';
+import {
+  AnthropicLlm,
+  claudeCodeSettingsPath,
+  DEFAULT_MODEL,
+  pickModel,
+  readClaudeCodeConnection,
+  type AnthropicOptions,
+} from '../core/profile/llm.ts';
 import { defaultSourceDirs } from '../core/sources.ts';
 import { defaultDbPath, type Store } from '../core/store.ts';
 import { OpenAiCompatibleLlm } from '../core/profile/openai.ts';
@@ -40,7 +56,9 @@ export function runMemories() {
   const counts = AGENT_KINDS.map((k) => [k, ms.filter((m) => m.agent === k).length] as const).filter(([, n]) => n);
   console.log(`共 ${ms.length} 条记忆：${counts.map(([k, n]) => `${agentLabel(k)} ${n} 条`).join('，')}`);
   for (const m of ms) {
-    console.log(`\n${tag(m.agent)} ${bold(m.name)} ${dim(`[${MEMORY_TYPE[m.type]}] ${m.project ? m.project + ' · ' : ''}${day(m.modified)}`)}`);
+    console.log(
+      `\n${tag(m.agent)} ${bold(m.name)} ${dim(`[${MEMORY_TYPE[m.type]}] ${m.project ? m.project + ' · ' : ''}${day(m.modified)}`)}`,
+    );
     if (m.description) console.log(`  ${m.description}`);
   }
 }
@@ -55,7 +73,9 @@ function destination(flags: ProfileFlags): string {
   if (flags['base-url']) return new URL(flags['base-url']).host;
   const fromFile = flags['key-file'] && readKeyFile(flags['key-file']).YUCHAO_BASE_URL;
   if (fromFile) return new URL(fromFile).host;
-  const base = flags['claude-code-config'] ? readClaudeCodeConnection(claudeCodeSettingsPath(defaultSourceDirs().claude!)).baseURL : process.env.ANTHROPIC_BASE_URL;
+  const base = flags['claude-code-config']
+    ? readClaudeCodeConnection(claudeCodeSettingsPath(defaultSourceDirs().claude!)).baseURL
+    : process.env.ANTHROPIC_BASE_URL;
   return base ? new URL(base).host : 'api.anthropic.com';
 }
 
@@ -119,8 +139,14 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
   switch (sub) {
     case 'stats': {
       const st = activityStats(store);
-      console.log(`${st.firstDay} → ${st.lastDay}，活跃 ${bold(String(st.activeDays))} 天，亲手写了 ${bold(String(st.userMessages))} 条消息（中位数 ${st.medianLength} 字）`);
-      console.log(`会话：${AGENT_KINDS.filter((k) => st.sessions[k]).map((k) => `${agentLabel(k)} ${st.sessions[k]}`).join('  ')}`);
+      console.log(
+        `${st.firstDay} → ${st.lastDay}，活跃 ${bold(String(st.activeDays))} 天，亲手写了 ${bold(String(st.userMessages))} 条消息（中位数 ${st.medianLength} 字）`,
+      );
+      console.log(
+        `会话：${AGENT_KINDS.filter((k) => st.sessions[k])
+          .map((k) => `${agentLabel(k)} ${st.sessions[k]}`)
+          .join('  ')}`,
+      );
       const peak = st.byHour.indexOf(Math.max(...st.byHour));
       console.log(`最活跃的时段：${peak}:00–${peak + 1}:00`);
       console.log('\n各时段消息数：');
@@ -137,7 +163,11 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       const p = previewPayload(store, scope);
       const out = join(dirname(defaultDbPath()), 'profile-preview.txt');
       mkdirSync(dirname(out), { recursive: true });
-      writeFileSync(out, `【系统提示词，每个会话都会附带】\n${p.system}\n\n` + p.sessions.map((s, i) => `【第 ${i + 1} 个会话 ${s.sessionId}】\n${s.text}`).join('\n\n'));
+      writeFileSync(
+        out,
+        `【系统提示词，每个会话都会附带】\n${p.system}\n\n` +
+          p.sessions.map((s, i) => `【第 ${i + 1} 个会话 ${s.sessionId}】\n${s.text}`).join('\n\n'),
+      );
       console.log(`将发送 ${p.sessions.length} 个会话、约 ${p.chars.toLocaleString()} 字（只有你写的话，已打码）。`);
       console.log(`完整内容已写到 ${out}，发送前可以先打开检查。`);
       break;
@@ -147,7 +177,9 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       const dest = destination(flags);
       const wanted = flags.model ?? DEFAULT_MODEL;
       if (!flags.yes) {
-        console.log(`将把 ${p.sessions.length} 个会话中你写的话（约 ${p.chars.toLocaleString()} 字，已打码）发送到 ${bold(dest)}，使用模型 ${wanted === 'auto' ? '（自动从接口上挑选）' : wanted}。`);
+        console.log(
+          `将把 ${p.sessions.length} 个会话中你写的话（约 ${p.chars.toLocaleString()} 字，已打码）发送到 ${bold(dest)}，使用模型 ${wanted === 'auto' ? '（自动从接口上挑选）' : wanted}。`,
+        );
         console.log('已经总结过且没有变化的会话会直接用缓存，不会重复发送。');
         console.log(`确认后加上 --yes 重新运行。想先看具体内容，运行 yuchao profile preview`);
         return;
@@ -177,7 +209,9 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       }
       if (process.stderr.isTTY) process.stderr.write('\n');
       const m = v.meta;
-      console.log(`完成：新总结 ${m.notesGenerated} 个会话，复用缓存 ${m.notesCached} 个，失败 ${m.notesFailed.length} 个；用时 ${(m.ms / 1000).toFixed(0)} 秒`);
+      console.log(
+        `完成：新总结 ${m.notesGenerated} 个会话，复用缓存 ${m.notesCached} 个，失败 ${m.notesFailed.length} 个；用时 ${(m.ms / 1000).toFixed(0)} 秒`,
+      );
       console.log(`token：输入 ${m.usage.input.toLocaleString()}，输出 ${m.usage.output.toLocaleString()}`);
       console.log(`引用校验：剔除了 ${m.droppedCitations} 个不存在的引用，丢掉了 ${m.droppedClaims} 条没有依据的结论`);
       for (const f of m.notesFailed.slice(0, 5)) console.log(color('31')(`  失败 ${f.sessionId}：${f.error}`));

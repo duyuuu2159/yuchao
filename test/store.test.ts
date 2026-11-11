@@ -23,17 +23,29 @@ test('首次索引收录全部会话', async () => {
   assert.equal(r.scanned, 4);
   assert.equal(r.indexed, 4);
   assert.deepEqual(r.errors, []);
-  const ids = store.listSessions({ includeSubagents: true }).map((s) => s.id).sort();
+  const ids = store
+    .listSessions({ includeSubagents: true })
+    .map((s) => s.id)
+    .sort();
   assert.deepEqual(ids, ['claude:s1', 'claude:s1/agent-abc', 'codex:c1', 'codex:c2']);
 });
 
 test('默认列表隐藏子 agent，详情里能看到子会话', async () => {
   const { dirs, store } = setup();
   await store.index(dirs);
-  assert.deepEqual(store.listSessions().map((s) => s.id).sort(), ['claude:s1', 'codex:c1']);
+  assert.deepEqual(
+    store
+      .listSessions()
+      .map((s) => s.id)
+      .sort(),
+    ['claude:s1', 'codex:c1'],
+  );
   const detail = store.getSession('claude:s1')!;
   assert.equal(detail.messages.length, 7);
-  assert.deepEqual(detail.children.map((c) => c.id), ['claude:s1/agent-abc']);
+  assert.deepEqual(
+    detail.children.map((c) => c.id),
+    ['claude:s1/agent-abc'],
+  );
 });
 
 test('文件没变时第二次索引全部跳过', async () => {
@@ -50,7 +62,11 @@ test('文件追加内容后只重建这一个会话，且不会产生重复消�
   const path = join(dirs.codex!, '..', C1);
   appendFileSync(
     path,
-    JSON.stringify({ timestamp: '2026-11-01T10:00:00.000Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '顺便部署到线上' }] } }) + '\n',
+    JSON.stringify({
+      timestamp: '2026-11-01T10:00:00.000Z',
+      type: 'response_item',
+      payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '顺便部署到线上' }] },
+    }) + '\n',
   );
   utimesSync(path, new Date(), new Date());
   const r = await store.index(dirs);
@@ -72,8 +88,14 @@ test('文件被删除后，对应会话和搜索结果一起清掉', async () =>
 test('中文搜索：三字以上走全文索引，两字词也能搜到', async () => {
   const { dirs, store } = setup();
   await store.index(dirs);
-  assert.deepEqual(store.search('上游服务').map((h) => h.sessionId), ['claude:s1']);
-  assert.deepEqual(store.search('回滚').map((h) => h.sessionId), ['claude:s1']);
+  assert.deepEqual(
+    store.search('上游服务').map((h) => h.sessionId),
+    ['claude:s1'],
+  );
+  assert.deepEqual(
+    store.search('回滚').map((h) => h.sessionId),
+    ['claude:s1'],
+  );
   // 多个词需要同时出现在同一条消息里
   assert.equal(store.search('回滚 上游服务').length, 1);
   assert.equal(store.search('回滚 首页').length, 0);

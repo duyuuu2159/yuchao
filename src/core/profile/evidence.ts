@@ -119,7 +119,10 @@ export function activityStats(store: Store): ActivityStats {
   const lengths = msgs.map((m) => [...m.text].length).sort((a, b) => a - b);
 
   const top = <K extends string>(map: Map<string, number>, n: number, key: K, val: string) =>
-    [...map].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => ({ [key]: k, [val]: v }));
+    [...map]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n)
+      .map(([k, v]) => ({ [key]: k, [val]: v }));
 
   return {
     sessions,
@@ -130,9 +133,13 @@ export function activityStats(store: Store): ActivityStats {
     byHour,
     byWeekday,
     topProjects: top(projects, 8, 'name', 'sessions') as ActivityStats['topProjects'],
-    topTools: (store.db
-      .prepare("SELECT tool_name AS name, COUNT(*) AS calls FROM messages WHERE role = 'tool_call' AND tool_name IS NOT NULL GROUP BY tool_name ORDER BY calls DESC LIMIT 10")
-      .all() as any[]).map((r) => ({ name: r.name, calls: r.calls })),
+    topTools: (
+      store.db
+        .prepare(
+          "SELECT tool_name AS name, COUNT(*) AS calls FROM messages WHERE role = 'tool_call' AND tool_name IS NOT NULL GROUP BY tool_name ORDER BY calls DESC LIMIT 10",
+        )
+        .all() as any[]
+    ).map((r) => ({ name: r.name, calls: r.calls })),
     topPhrases: (top(phrases, 10, 'text', 'count') as ActivityStats['topPhrases']).filter((p) => p.count >= 2),
     medianLength: lengths.length ? lengths[Math.floor(lengths.length / 2)] : 0,
   };
@@ -145,7 +152,9 @@ export function sanitize(text: string): string {
 
 function clipMessage(text: string): string {
   const chars = [...text];
-  return chars.length > MAX_MESSAGE_CHARS ? chars.slice(0, MAX_MESSAGE_CHARS).join('') + `…[本条还有 ${chars.length - MAX_MESSAGE_CHARS} 字未发送]` : text;
+  return chars.length > MAX_MESSAGE_CHARS
+    ? chars.slice(0, MAX_MESSAGE_CHARS).join('') + `…[本条还有 ${chars.length - MAX_MESSAGE_CHARS} 字未发送]`
+    : text;
 }
 
 /**

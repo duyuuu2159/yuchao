@@ -229,7 +229,19 @@ export class Store {
         `INSERT INTO sessions(id, agent, native_id, parent_id, title, cwd, started_at, updated_at, archived, source_path, message_count)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(s.id, s.agent, s.nativeId, s.parentId, s.title, s.cwd, s.startedAt, s.updatedAt, s.archived ? 1 : 0, s.sourcePath, s.messages.length);
+      .run(
+        s.id,
+        s.agent,
+        s.nativeId,
+        s.parentId,
+        s.title,
+        s.cwd,
+        s.startedAt,
+        s.updatedAt,
+        s.archived ? 1 : 0,
+        s.sourcePath,
+        s.messages.length,
+      );
     const ins = this.db.prepare('INSERT INTO messages(session_id, seq, ts, role, tool_name, text) VALUES (?, ?, ?, ?, ?, ?)');
     for (const m of s.messages) ins.run(s.id, m.seq, m.ts, m.role, m.toolName, m.text);
   }

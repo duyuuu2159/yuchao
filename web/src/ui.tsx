@@ -9,11 +9,13 @@ const ICONS = {
   shield: 'M10 3l6 2v4.5c0 3.6-2.5 6.3-6 7.5-3.5-1.2-6-3.9-6-7.5V5zM7.5 10l2 2 3.5-4',
   user: 'M10 10a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5zM3.5 17c.6-3 3.2-4.5 6.5-4.5s5.900 1.5 6.5 4.5',
   sliders: 'M4 6h7M15 6h1M4 14h1M9 14h7M13 4v4M7 12v4',
-  server: 'M4 4h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 11h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1zM6 6.5h.01M6 13.500h.01',
+  server:
+    'M4 4h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 11h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1zM6 6.5h.01M6 13.500h.01',
   refresh: 'M16 10a6 6 0 0 1-10.600 3.800M4 10a6 6 0 0 1 10.600-3.800M14.500 3v3.500H11M5.500 17v-3.500H9',
   sun: 'M10 13.500a3.500 3.500 0 1 0 0-7 3.500 3.500 0 0 0 0 7zM10 2v1.500M10 16.500V18M2 10h1.500M16.500 10H18M4.300 4.300l1.100 1.100M14.600 14.600l1.100 1.100M4.300 15.700l1.100-1.100M14.600 5.400l1.100-1.100',
   moon: 'M16.500 11.500A6.500 6.500 0 0 1 8.500 3.500a6.500 6.500 0 1 0 8 8z',
-  monitor: 'M3.500 4h13a.500.500 0 0 1 .500.500v8a.500.500 0 0 1-.500.500h-13a.500.500 0 0 1-.500-.500v-8a.500.500 0 0 1 .500-.500zM7 16.500h6M10 13v3.500',
+  monitor:
+    'M3.500 4h13a.500.500 0 0 1 .500.500v8a.500.500 0 0 1-.500.500h-13a.500.500 0 0 1-.500-.500v-8a.500.500 0 0 1 .500-.500zM7 16.500h6M10 13v3.500',
   search: 'M9 15A6 6 0 1 0 9 3a6 6 0 0 0 0 12zM13.500 13.500 17 17',
   copy: 'M7 7V4.500a.500.500 0 0 1 .500-.500h8a.500.500 0 0 1 .500.500v8a.500.500 0 0 1-.500.500H13M4.500 7h8a.500.500 0 0 1 .500.500v8a.500.500 0 0 1-.500.500h-8a.500.500 0 0 1-.500-.500v-8a.500.500 0 0 1 .500-.500z',
   check: 'M4.500 10.500l3.500 3.500 7.500-8',
@@ -29,7 +31,18 @@ export type IconName = keyof typeof ICONS;
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   return (
-    <svg className="icon" width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.600" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className="icon"
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.600"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d={ICONS[name]} />
     </svg>
   );
@@ -80,7 +93,18 @@ export function CopyButton({ text, label = '复制' }: { text: string; label?: s
     return () => clearTimeout(t);
   }, [done]);
   return (
-    <button type="button" className="copy" title={label} aria-label={label} onClick={() => navigator.clipboard.writeText(text).then(() => setDone(true), () => {})}>
+    <button
+      type="button"
+      className="copy"
+      title={label}
+      aria-label={label}
+      onClick={() =>
+        navigator.clipboard.writeText(text).then(
+          () => setDone(true),
+          () => {},
+        )
+      }
+    >
       <Icon name={done ? 'check' : 'copy'} size={14} />
       {done ? '已复制' : ''}
     </button>
@@ -140,7 +164,11 @@ export function parseRoute(hash: string): Route {
   } catch {
     // 地址被改坏了，当作没有打开会话
   }
-  return { view: (VIEWS as readonly string[]).includes(view) ? (view as View) : 'overview', id: id || null, seq: seq !== null && /^\d+$/.test(seq) ? Number(seq) : null };
+  return {
+    view: (VIEWS as readonly string[]).includes(view) ? (view as View) : 'overview',
+    id: id || null,
+    seq: seq !== null && /^\d+$/.test(seq) ? Number(seq) : null,
+  };
 }
 
 export function routeHash(view: View, id: string | null = null, seq: number | null = null): string {

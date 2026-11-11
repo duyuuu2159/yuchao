@@ -93,13 +93,26 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
         <div className="list-tools">
           <label className="search">
             <Icon name="search" />
-            <input ref={searchRef} type="search" placeholder="搜索所有 agent 的对话" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="搜索对话，多个词用空格分开" />
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="搜索所有 agent 的对话"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="搜索对话，多个词用空格分开"
+            />
             <kbd>/</kbd>
           </label>
           <div className="filters">
             <fieldset className="seg" aria-label="按 agent 筛选">
               {[undefined, ...AGENTS].map((a) => (
-                <button type="button" key={a ?? 'all'} className={agent === a ? 'on' : ''} aria-pressed={agent === a} onClick={() => setAgent(a)}>
+                <button
+                  type="button"
+                  key={a ?? 'all'}
+                  className={agent === a ? 'on' : ''}
+                  aria-pressed={agent === a}
+                  onClick={() => setAgent(a)}
+                >
                   {a ? AGENT_LABEL[a] : '全部'}
                 </button>
               ))}
@@ -120,10 +133,15 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
               <div className="list-count">找到 {hits.length >= 100 ? '100+' : hits.length} 条</div>
               {hits.length === 0 && <Empty title="没有结果">两个字以下的词会逐条扫描，可以换个说法，或者勾选「含工具调用」。</Empty>}
               {hits.map((h) => (
-                <button type="button" key={h.messageId} className={'item' + (openId === h.sessionId && focusSeq === h.seq ? ' active' : '')} onClick={() => onOpen(h.sessionId, h.seq)}>
+                <button
+                  type="button"
+                  key={h.messageId}
+                  className={'item' + (openId === h.sessionId && focusSeq === h.seq ? ' active' : '')}
+                  onClick={() => onOpen(h.sessionId, h.seq)}
+                >
                   <div className="title">{h.title ?? '（无标题）'}</div>
                   <div className="snippet">
-                    <span className="role">{h.role === 'user' ? '你' : h.role === 'assistant' ? 'agent' : h.toolName ?? h.role}</span>
+                    <span className="role">{h.role === 'user' ? '你' : h.role === 'assistant' ? 'agent' : (h.toolName ?? h.role)}</span>
                     {highlight(h.snippet, terms)}
                   </div>
                   <div className="item-meta">
@@ -139,7 +157,9 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
               <Skeleton lines={8} />
             </div>
           ) : sessions.length === 0 ? (
-            <Empty icon="chat" title="还没有会话">点左下角的「更新索引」，读取本机各个 agent 的会话。</Empty>
+            <Empty icon="chat" title="还没有会话">
+              点左下角的「更新索引」，读取本机各个 agent 的会话。
+            </Empty>
           ) : (
             grouped(sessions, (s) => s.updatedAt).map(([label, rows]) => (
               <section key={label}>
@@ -176,7 +196,19 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
   );
 }
 
-function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: boolean; focusSeq: number | null; terms: string[]; onOpen: Props['onOpen'] }) {
+function SessionView({
+  id,
+  raw,
+  focusSeq,
+  terms,
+  onOpen,
+}: {
+  id: string;
+  raw: boolean;
+  focusSeq: number | null;
+  terms: string[];
+  onOpen: Props['onOpen'];
+}) {
   const [s, setS] = useState<SessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTools, setShowTools] = useState(false);
@@ -201,7 +233,12 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
     focusRef.current?.scrollIntoView({ block: 'center' });
   }, [s, focusSeq, showTools]);
 
-  if (error) return <Empty icon="alert" title="打不开这个会话">{error}</Empty>;
+  if (error)
+    return (
+      <Empty icon="alert" title="打不开这个会话">
+        {error}
+      </Empty>
+    );
   if (!s)
     return (
       <div className="reader-inner">
@@ -222,7 +259,12 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
           </button>
           <div className="reader-title">
             <h1>{s.title ?? '（无标题）'}</h1>
-            <button type="button" className="btn cta small" onClick={() => setRelay(true)} title="把这个会话整理成交接说明，粘贴给另一个 agent 接着做">
+            <button
+              type="button"
+              className="btn cta small"
+              onClick={() => setRelay(true)}
+              title="把这个会话整理成交接说明，粘贴给另一个 agent 接着做"
+            >
               <Icon name="relay" /> 接力
             </button>
           </div>
@@ -290,7 +332,12 @@ function MessageView({ m, focused, terms, ref }: { m: Message; focused: boolean;
       </div>
     );
   }
-  const label = m.role === 'tool_call' ? `调用 ${m.toolName ?? '工具'}` : m.role === 'tool_result' ? '工具输出' : `上下文${m.toolName ? ' · ' + m.toolName : ''}`;
+  const label =
+    m.role === 'tool_call'
+      ? `调用 ${m.toolName ?? '工具'}`
+      : m.role === 'tool_result'
+        ? '工具输出'
+        : `上下文${m.toolName ? ' · ' + m.toolName : ''}`;
   return (
     <div className={cls} ref={ref}>
       <details open={focused}>

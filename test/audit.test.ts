@@ -13,18 +13,35 @@ const PW = 'Tq8vLm2Xz9';
 async function setup(beforeIndex?: (root: string) => void) {
   const root = mkdtempSync(join(tmpdir(), 'yuchao-audit-'));
   cpSync(FIX, root, { recursive: true });
-  appendFileSync(join(root, 'codex/session_index.jsonl'), JSON.stringify({ id: 'c1', thread_name: `服务器 203.0.113.7 root 密码 ${PW}` }) + '\n');
+  appendFileSync(
+    join(root, 'codex/session_index.jsonl'),
+    JSON.stringify({ id: 'c1', thread_name: `服务器 203.0.113.7 root 密码 ${PW}` }) + '\n',
+  );
   const s1 = join(root, 'claude/projects/G--demo/s1.jsonl');
-  appendFileSync(s1, JSON.stringify({ type: 'user', message: { role: 'user', content: `还是连不上，密码 ${PW}` }, timestamp: '2026-11-03T00:00:00.000Z' }) + '\n');
+  appendFileSync(
+    s1,
+    JSON.stringify({ type: 'user', message: { role: 'user', content: `还是连不上，密码 ${PW}` }, timestamp: '2026-11-03T00:00:00.000Z' }) +
+      '\n',
+  );
   appendFileSync(
     s1,
     JSON.stringify({
       type: 'assistant',
-      message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Bash', input: { command: `sshpass -p '${PW}' ssh root@203.0.113.7 uptime` } }] },
+      message: {
+        role: 'assistant',
+        content: [{ type: 'tool_use', name: 'Bash', input: { command: `sshpass -p '${PW}' ssh root@203.0.113.7 uptime` } }],
+      },
       timestamp: '2026-11-03T00:01:00.000Z',
     }) + '\n',
   );
-  appendFileSync(s1, JSON.stringify({ type: 'user', message: { role: 'user', content: '数据库 password=Hk3nWq7pZr2' }, timestamp: '2026-11-03T00:02:00.000Z' }) + '\n');
+  appendFileSync(
+    s1,
+    JSON.stringify({
+      type: 'user',
+      message: { role: 'user', content: '数据库 password=Hk3nWq7pZr2' },
+      timestamp: '2026-11-03T00:02:00.000Z',
+    }) + '\n',
+  );
   beforeIndex?.(root);
   const store = new Store(':memory:');
   await store.index({ claude: join(root, 'claude'), codex: join(root, 'codex') });

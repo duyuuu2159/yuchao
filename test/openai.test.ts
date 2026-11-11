@@ -19,7 +19,8 @@ const server = createServer((req, res) => {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(JSON.stringify(payload));
     };
-    const ok = (content: string, finish = 'stop') => reply(200, { choices: [{ message: { content }, finish_reason: finish }], usage: { prompt_tokens: 11, completion_tokens: 7 } });
+    const ok = (content: string, finish = 'stop') =>
+      reply(200, { choices: [{ message: { content }, finish_reason: finish }], usage: { prompt_tokens: 11, completion_tokens: 7 } });
     if (req.headers.authorization !== 'Bearer good-key') return reply(401, { error: { message: 'Invalid token' } });
     if (user === 'flaky' && failuresLeft-- > 0) return reply(429, { error: { message: 'slow down' } });
     if (user === 'fenced') return ok('```json\n{"answer": 42}\n```');
@@ -34,7 +35,8 @@ const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 after(() => server.close());
 
 const Schema = z.object({ answer: z.number().int() });
-const llm = (key = 'good-key', baseURL = `${base}/v1`) => new OpenAiCompatibleLlm({ baseURL, apiKey: key, model: 'gpt-test', maxRetries: 2 });
+const llm = (key = 'good-key', baseURL = `${base}/v1`) =>
+  new OpenAiCompatibleLlm({ baseURL, apiKey: key, model: 'gpt-test', maxRetries: 2 });
 const ask = (client: OpenAiCompatibleLlm, user: string) => client.json({ system: '回答问题', user, schema: Schema });
 
 test('正常返回：请求地址、鉴权头、JSON Schema 和 token 统计', async () => {

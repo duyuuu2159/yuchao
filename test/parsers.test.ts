@@ -31,7 +31,10 @@ test('Claude：区分用户输入、工具调用和注入的上下文，跳过�
   const call = s.messages[2];
   assert.equal(call.toolName, 'Bash');
   assert.match(call.text, /nginx -t/);
-  assert.deepEqual(s.messages.map((m) => m.seq), [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(
+    s.messages.map((m) => m.seq),
+    [0, 1, 2, 3, 4, 5, 6],
+  );
 });
 
 test('Claude：子 agent 会话挂到父会话下，没有标题时用首条消息', async () => {
@@ -52,7 +55,17 @@ test('Codex：从 session_index 取标题，同一会话以最后一次为准', 
 
 test('Codex：提取真实请求、去掉图片标签，忽略系统提示词和加密推理', async () => {
   const s = await parseCodexFile(C1);
-  assert.deepEqual(roles(s), ['context', 'user', 'tool_call', 'tool_result', 'tool_call', 'tool_result', 'tool_call', 'context', 'assistant']);
+  assert.deepEqual(roles(s), [
+    'context',
+    'user',
+    'tool_call',
+    'tool_result',
+    'tool_call',
+    'tool_result',
+    'tool_call',
+    'context',
+    'assistant',
+  ]);
   assert.equal(s.messages[1].text, '首页卡死进不去');
   assert.equal(s.messages[5].text, 'active (running)');
   assert.equal(s.messages[6].toolName, 'web_search');
@@ -84,9 +97,17 @@ test('Claude：工作流里的子 agent（subagents 下面还有一层目录）�
   const { mkdirSync } = await import('node:fs');
   const p = join(dir, 'projects', 'G--demo', 'p1', 'subagents', 'workflows', 'wf_1');
   mkdirSync(p, { recursive: true });
-  writeFileSync(join(p, 'agent-x.jsonl'), JSON.stringify({ type: 'user', timestamp: '2026-11-10T00:00:00Z', message: { content: '[Workflow harness — computed task] 做点事' } }) + '\n');
+  writeFileSync(
+    join(p, 'agent-x.jsonl'),
+    JSON.stringify({ type: 'user', timestamp: '2026-11-10T00:00:00Z', message: { content: '[Workflow harness — computed task] 做点事' } }) +
+      '\n',
+  );
   const s = await parseClaudeFile(join(p, 'agent-x.jsonl'));
   assert.equal(s.id, 'claude:p1/agent-x');
   assert.equal(s.parentId, 'claude:p1');
-  assert.deepEqual(s.messages.map((m) => m.role), ['context'], '工作流的任务说明不是用户写的');
+  assert.deepEqual(
+    s.messages.map((m) => m.role),
+    ['context'],
+    '工作流的任务说明不是用户写的',
+  );
 });

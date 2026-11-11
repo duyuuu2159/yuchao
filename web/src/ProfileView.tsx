@@ -1,10 +1,26 @@
 import { useEffect, useState } from 'react';
-import { AGENT_LABEL, AGENTS, profileApi, type ActivityStats, type AgentMemory, type ProfileDiff, type ProfileOverview, type ProfileVersion, type Scope } from './api.ts';
+import {
+  AGENT_LABEL,
+  AGENTS,
+  profileApi,
+  type ActivityStats,
+  type AgentMemory,
+  type ProfileDiff,
+  type ProfileOverview,
+  type ProfileVersion,
+  type Scope,
+} from './api.ts';
 import { when } from './format.ts';
 import { AgentBadge, Cmd, ErrorPage, LoadingPage, PageHeader } from './ui.tsx';
 
 const SCOPE_LABEL = (s: Scope) => (s === 'all' ? '综合' : `${AGENT_LABEL[s]} 眼中`);
-const MEMORY_TYPE: Record<AgentMemory['type'], string> = { user: '关于你', feedback: '做事要求', project: '项目', reference: '参考', other: '其他' };
+const MEMORY_TYPE: Record<AgentMemory['type'], string> = {
+  user: '关于你',
+  feedback: '做事要求',
+  project: '项目',
+  reference: '参考',
+  other: '其他',
+};
 
 export function ProfileView({ onOpen }: { onOpen: (sessionId: string) => void }) {
   const [data, setData] = useState<ProfileOverview | null>(null);
@@ -19,7 +35,11 @@ export function ProfileView({ onOpen }: { onOpen: (sessionId: string) => void })
 
   return (
     <div className="page profile">
-      <PageHeader kicker="03 · 画像" title="Agent 眼中的你" desc="三个角度：本地统计出来的相处方式、agent 自己写下的记忆、大模型从你写的话里整理的画像（每条结论都附出处）。" />
+      <PageHeader
+        kicker="03 · 画像"
+        title="Agent 眼中的你"
+        desc="三个角度：本地统计出来的相处方式、agent 自己写下的记忆、大模型从你写的话里整理的画像（每条结论都附出处）。"
+      />
       <Stats stats={data.stats} />
       <Memories memories={data.memories} onOpen={onOpen} />
       <Profiles latest={data.latest} versions={data.versions} onOpen={onOpen} />
@@ -44,7 +64,11 @@ function Stats({ stats }: { stats: ActivityStats }) {
         </div>
         <div className="stat">
           <b>{AGENTS.reduce((n, a) => n + (stats.sessions[a] ?? 0), 0)}</b>
-          <span title={AGENTS.filter((a) => stats.sessions[a]).map((a) => `${AGENT_LABEL[a]} ${stats.sessions[a]}`).join('，')}>
+          <span
+            title={AGENTS.filter((a) => stats.sessions[a])
+              .map((a) => `${AGENT_LABEL[a]} ${stats.sessions[a]}`)
+              .join('，')}
+          >
             个会话，来自 {AGENTS.filter((a) => stats.sessions[a]).length} 个 agent
           </span>
         </div>
@@ -128,8 +152,8 @@ function Memories({ memories, onOpen }: { memories: AgentMemory[]; onOpen: (sess
     <section>
       <h2>agent 已经记住的事</h2>
       <p className="hint">
-        这些是 agent 在和你合作时自己写下的记忆，下次对话会自动读取：Claude Code 存在 ~/.claude/projects/*/memory/，WorkBuddy 存在 ~/.workbuddy 的
-        USER.md、MEMORY.md 和 memory/ 里。
+        这些是 agent 在和你合作时自己写下的记忆，下次对话会自动读取：Claude Code 存在 ~/.claude/projects/*/memory/，WorkBuddy 存在
+        ~/.workbuddy 的 USER.md、MEMORY.md 和 memory/ 里。
       </p>
       {memories.length === 0 && <div className="empty">没有找到记忆文件。</div>}
       <div className="memories">
@@ -157,7 +181,15 @@ function Memories({ memories, onOpen }: { memories: AgentMemory[]; onOpen: (sess
   );
 }
 
-function Profiles({ latest, versions, onOpen }: { latest: ProfileOverview['latest']; versions: ProfileOverview['versions']; onOpen: (sessionId: string) => void }) {
+function Profiles({
+  latest,
+  versions,
+  onOpen,
+}: {
+  latest: ProfileOverview['latest'];
+  versions: ProfileOverview['versions'];
+  onOpen: (sessionId: string) => void;
+}) {
   const available = (['all', ...AGENTS] as Scope[]).filter((s) => latest[s]);
   const [scope, setScope] = useState<Scope>(available[0] ?? 'all');
   const [diff, setDiff] = useState<ProfileDiff | null>(null);
@@ -180,16 +212,27 @@ function Profiles({ latest, versions, onOpen }: { latest: ProfileOverview['lates
       ) : (
         <>
           <fieldset className="seg" aria-label="画像范围">
-            {(['all', ...AGENTS] as Scope[]).filter((s) => s === 'all' || latest[s]).map((s) => (
-              <button type="button" key={s} className={scope === s ? 'on' : ''} aria-pressed={scope === s} disabled={!latest[s]} onClick={() => setScope(s)}>
-                {SCOPE_LABEL(s)}
-              </button>
-            ))}
+            {(['all', ...AGENTS] as Scope[])
+              .filter((s) => s === 'all' || latest[s])
+              .map((s) => (
+                <button
+                  type="button"
+                  key={s}
+                  className={scope === s ? 'on' : ''}
+                  aria-pressed={scope === s}
+                  disabled={!latest[s]}
+                  onClick={() => setScope(s)}
+                >
+                  {SCOPE_LABEL(s)}
+                </button>
+              ))}
           </fieldset>
           {v ? <ProfileCard v={v} onOpen={onOpen} /> : <div className="empty">这个范围还没有生成画像。</div>}
           {diff && (diff.added.length > 0 || diff.removed.length > 0) && (
             <div className="diff">
-              <h3>和上一版相比（{when(diff.from)} → {when(diff.to)}）</h3>
+              <h3>
+                和上一版相比（{when(diff.from)} → {when(diff.to)}）
+              </h3>
               {diff.added.map((t) => (
                 <div key={'+' + t} className="added">
                   + {t}
@@ -213,7 +256,8 @@ function ProfileCard({ v, onOpen }: { v: ProfileVersion; onOpen: (sessionId: str
     <article className="profile-card">
       <p className="headline">{v.profile.headline}</p>
       <p className="meta">
-        版本 #{v.id} · {when(v.createdAt)} · {v.meta.model} · 依据 {v.meta.sessions} 个会话 · 引用校验剔除了 {v.meta.droppedCitations} 个不存在的引用、{v.meta.droppedClaims} 条没有依据的结论
+        版本 #{v.id} · {when(v.createdAt)} · {v.meta.model} · 依据 {v.meta.sessions} 个会话 · 引用校验剔除了 {v.meta.droppedCitations}{' '}
+        个不存在的引用、{v.meta.droppedClaims} 条没有依据的结论
       </p>
       {v.profile.sections.map((s) => (
         <div key={s.title} className="profile-section">
