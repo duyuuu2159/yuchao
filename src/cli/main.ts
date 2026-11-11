@@ -10,11 +10,12 @@ import { ConfigManager } from '../core/configs.ts';
 import { runConfig } from './config.ts';
 import { runMemories, runProfile } from './profile.ts';
 import { bold, color, day, dim, fail, tag } from './style.ts';
+import pkg from '../../package.json' with { type: 'json' };
 
 const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在一起
 
 用法：
-  yuchao index                     扫描并增量索引 Claude Code / Codex 的会话
+  yuchao index                     扫描并增量索引各个 agent 的会话
   yuchao search <关键词...>        搜索对话（多个词需同时出现）
       --agent <名字>               只搜某个 agent（claude、codex、workbuddy、dsh）
       --tools                      同时搜索工具调用和工具输出
@@ -57,6 +58,7 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao server setup [名字]       生成只读专用密钥，打印服务器上需要做的配置
   yuchao server list|remove        列出或移除服务器
   yuchao serve [--port 4317]       启动本地网页界面
+  yuchao --version                 显示版本号
 
 数据库位置：${defaultDbPath()}（可用环境变量 YUCHAO_DB 修改）`;
 
@@ -82,6 +84,7 @@ const { values, positionals } = parseArgs({
     yes: { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
+    version: { type: 'boolean', short: 'v', default: false },
   },
 });
 
@@ -92,6 +95,11 @@ const limit = values.limit ? Number(values.limit) : undefined;
 
 const you = color('32')('你');
 const them = color('35')('agent');
+
+if (values.version) {
+  console.log(`yuchao ${pkg.version} (node ${process.versions.node}, ${process.platform}-${process.arch})`);
+  process.exit(0);
+}
 
 if (!cmd && !values.help && isSea()) {
   // 双击 yuchao.exe：更新索引，启动网页并打开浏览器
