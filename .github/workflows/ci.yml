@@ -1,0 +1,70 @@
+# 每次推送和 PR 都跑：类型检查、代码规范、测试（含覆盖率下限）、网页构建和包体积预算。
+# Windows 和 Linux 各跑一遍：鱼巢的主要用户在 Windows 上，但路径、换行、家目录的处理在两边都要对。
+# 最后在 Windows 上打包 exe 并实际运行一次，确认单文件程序能启动。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 检查（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: 类型检查
+        run: npm run typecheck
+      - name: 代码规范和格式
+        run: npx biome ci --reporter=github
+      - name: 测试（覆盖率下限：行 90%、分支 80%、函数 85%）
+        run: npm run test:coverage
+      - name: 构建网页
+        run: npm run web:build
+      - name: 包体积预算
+        run: node scripts/check-bundle-size.mjs
+
+  exe:
+    name: 打包 exe 并试运行
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:exe
+      - name: 试运行
+        shell: bash
+        run: |
+          ./dist/yuchao.exe --version
+          # 用空的家目录跑一遍索引和统计，确认内置资源和数据库在单文件程序里都能用
+          export USERPROFILE="$RUNNER_TEMP/home" YUCHAO_DB="$RUNNER_TEMP/home/index.db"
+          mkdir -p "$USERPROFILE"
+          ./dist/yuchao.exe index
+          ./dist/yuchao.exe stats
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yuchao-windows-x64
+          path: dist/yuchao.exe
+          retention-days: 14
