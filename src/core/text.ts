@@ -27,6 +27,7 @@ function startsWithAny(text: string, prefixes: string[]): boolean {
   return prefixes.some((p) => t.startsWith(p));
 }
 
+import { redact } from './scan.ts';
 export function isClaudeContext(text: string): boolean {
   return startsWithAny(text, CLAUDE_CONTEXT_PREFIXES);
 }
@@ -64,6 +65,7 @@ export function toText(value: unknown): string {
 
 /** 没有标题的会话，用用户第一条消息截断后作为标题 */
 export function titleFrom(text: string, max = 40): string {
-  const one = text.replace(/\s+/g, ' ').trim();
+  // 先打码再截断：密钥被截成半截后就不再符合任何规则，之后显示时的打码会漏掉它
+  const one = redact(text).replace(/\s+/g, ' ').trim();
   return one.length > max ? one.slice(0, max) + '…' : one;
 }

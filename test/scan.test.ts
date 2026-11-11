@@ -147,3 +147,12 @@ test('说明文字、连接串模板和常量名不算秘密', () => {
   assert.deepEqual(scanText('DATABASE_URL=postgresql://user:password@host:5432/name'), []);
   assert.deepEqual(scanText('"client_secret": GITHUB_CLIENT_SECRET_VALUE,'), []);
 });
+
+test('会话标题先打码再截断：密钥不会被截成半截后漏过打码', async () => {
+  const { titleFrom } = await import('../src/core/text.ts');
+  const key = 'AKIA' + 'TITLETEST' + '0123456'; // AKIA 后 16 位
+  const title = titleFrom(`笔记想每天备份到 S3，我的 AWS_ACCESS_KEY_ID=${key}，帮我写个脚本`);
+  // 修复前：标题截在第 40 个字，留下「AKIADEM…」这样的半截，显示时的打码规则已经认不出它
+  assert.ok(!title.includes('AKIATIT'), `标题里不能留下密钥的任何一段：${title}`);
+  assert.ok(title.length <= 41);
+});

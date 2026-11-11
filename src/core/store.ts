@@ -8,7 +8,7 @@ import { discover, type SourceDirs, type SourceFile } from './sources.ts';
 import type { AgentKind, Role, Session } from './types.ts';
 
 /** 解析器或表结构有变化时加 1，已有的索引会在下次打开时清空重建 */
-export const PARSER_VERSION = 7;
+export const PARSER_VERSION = 8;
 
 export function defaultDbPath(): string {
   return process.env.YUCHAO_DB ?? join(homedir(), '.yuchao', 'index.db');
