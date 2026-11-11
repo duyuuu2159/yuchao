@@ -15,6 +15,7 @@
     "yuchao": "node src/cli/main.ts",
     "test": "node --test \"test/**/*.test.ts\"",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"src/cli/secret.ts\" --test-coverage-lines=90 --test-coverage-branches=80 --test-coverage-functions=85 \"test/**/*.test.ts\"",
+    "bench": "node scripts/bench.ts",
     "typecheck": "tsc -p . && tsc -p web",
     "lint": "biome check",
     "format": "biome check --write",
