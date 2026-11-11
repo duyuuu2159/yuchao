@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { basename } from 'node:path';
 import { AGENT_KINDS, agentLabel } from '../agents.ts';
 import { IPV4, redact } from '../scan.ts';
 import type { Store } from '../store.ts';
@@ -49,7 +48,14 @@ const localDay = (ts: string) => {
 
 export function projectName(cwd: string | null): string | null {
   if (!cwd) return null;
-  return basename(cwd.replace(/[\\/]+$/, '')) || cwd;
+  // 会话里的工作目录来自写下它的那台机器，可能是 Windows 路径。path.basename 在 Linux 上不认反斜杠，
+  // 在 WSL 里读 Windows 的会话时会把整条路径当成项目名，所以两种分隔符都自己切
+  return (
+    cwd
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .pop() || cwd
+  );
 }
 
 interface UserRow {

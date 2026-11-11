@@ -15,7 +15,7 @@ import {
   profileHistory,
   SessionNoteSchema,
 } from '../src/core/profile/build.ts';
-import { activityStats, sessionEvidence } from '../src/core/profile/evidence.ts';
+import { activityStats, projectName, sessionEvidence } from '../src/core/profile/evidence.ts';
 import { type JsonRequest, type LlmClient, pickModel } from '../src/core/profile/llm.ts';
 import { Store } from '../src/core/store.ts';
 
@@ -152,6 +152,15 @@ test('会话太长时保留首尾，中间明确标出省略了多少条', async
   assert.match(ev.text, /第 0 条/);
   assert.match(ev.text, /第 59 条/);
   assert.ok(ev.text.length <= 8200);
+});
+
+test('项目名：Windows 和 Unix 路径在任何系统上都能取到最后一级', () => {
+  // 会话里的工作目录可能来自另一台机器，例如在 Linux / WSL 上读 Windows 的会话
+  assert.equal(projectName('C:\\work\\site'), 'site');
+  assert.equal(projectName('C:\\work\\site\\'), 'site');
+  assert.equal(projectName('/home/dev/blog/'), 'blog');
+  assert.equal(projectName('c:/Users/demo/WorkBuddy'), 'WorkBuddy');
+  assert.equal(projectName(null), null);
 });
 
 test('本地统计', async () => {
