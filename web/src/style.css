@@ -624,6 +624,10 @@ code {
   background: var(--sunken);
   border: 1px solid var(--line);
 }
+.seg:is(fieldset) {
+  margin: 0;
+  min-width: 0;
+}
 .seg button {
   border: 0;
   background: none;

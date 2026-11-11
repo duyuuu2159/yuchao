@@ -100,7 +100,10 @@ test('zstd 多帧：一个汉字被切在两帧之间也能拼回来；压缩数
   // 压不动的随机字节会被原样存进帧里，在中间放一个魔数，就模拟出「压缩数据中间碰巧出现帧头」
   const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
   let seed = 7;
-  const noise = (n: number) => Buffer.from(Array.from({ length: n }, () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) & 0xff));
+  const noise = (n: number) => Buffer.from(Array.from({ length: n }, () => {
+    seed = (seed * 1103515245 + 12345) % 2 ** 31;
+    return seed & 0xff;
+  }));
   const tricky = Buffer.concat([noise(40), MAGIC, noise(40)]);
   const first = zstdCompressSync(tricky);
   assert.ok(first.indexOf(MAGIC, 4) > 0, '帧中间确实出现了魔数');

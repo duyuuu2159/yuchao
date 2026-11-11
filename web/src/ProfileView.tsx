@@ -83,9 +83,12 @@ function HourChart({ byHour }: { byHour: number[] }) {
       <figcaption>
         各时段的消息数 <span className="meta">（本地时间）</span>
       </figcaption>
-      <div className="bars" onMouseLeave={() => setHover(null)}>
+      {/* 图形只给看得见的人；读屏软件读下面的「以表格查看」，所以整块 aria-hidden，悬停提示也只是鼠标用户的增强 */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: 见上一行 */}
+      <div className="bars" onMouseLeave={() => setHover(null)} aria-hidden="true">
         {byHour.map((n, h) => (
-          <div key={h} className="bar-slot" onMouseEnter={() => setHover(h)} aria-label={`${h} 点：${n} 条`}>
+          // biome-ignore lint/a11y/noStaticElementInteractions lint/suspicious/noArrayIndexKey: 同上；h 是 0–23 点，本身就是稳定的身份
+          <div key={h} className="bar-slot" onMouseEnter={() => setHover(h)}>
             <div className="bar" style={{ height: `${(n / max) * 100}%` }} />
             {hover === h && (
               <div className="tip">
@@ -107,6 +110,7 @@ function HourChart({ byHour }: { byHour: number[] }) {
         <table>
           <tbody>
             {byHour.map((n, h) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: h 是 0–23 点，本身就是稳定的身份
               <tr key={h}>
                 <th>{h}:00</th>
                 <td>{n}</td>
@@ -142,7 +146,7 @@ function Memories({ memories, onOpen }: { memories: AgentMemory[]; onOpen: (sess
             </summary>
             <pre>{m.body}</pre>
             {m.originSessionId && (
-              <button className="link" onClick={() => onOpen(`${m.agent}:${m.originSessionId}`)}>
+              <button type="button" className="link" onClick={() => onOpen(`${m.agent}:${m.originSessionId}`)}>
                 查看写下这条记忆的会话 →
               </button>
             )}
@@ -175,13 +179,13 @@ function Profiles({ latest, versions, onOpen }: { latest: ProfileOverview['lates
         </div>
       ) : (
         <>
-          <div className="seg" role="group" aria-label="画像范围">
+          <fieldset className="seg" aria-label="画像范围">
             {(['all', ...AGENTS] as Scope[]).filter((s) => s === 'all' || latest[s]).map((s) => (
-              <button key={s} className={scope === s ? 'on' : ''} disabled={!latest[s]} onClick={() => setScope(s)}>
+              <button type="button" key={s} className={scope === s ? 'on' : ''} aria-pressed={scope === s} disabled={!latest[s]} onClick={() => setScope(s)}>
                 {SCOPE_LABEL(s)}
               </button>
             ))}
-          </div>
+          </fieldset>
           {v ? <ProfileCard v={v} onOpen={onOpen} /> : <div className="empty">这个范围还没有生成画像。</div>}
           {diff && (diff.added.length > 0 || diff.removed.length > 0) && (
             <div className="diff">
@@ -236,12 +240,12 @@ function Claim({ claim, onOpen }: { claim: ClaimData; onOpen: (sessionId: string
       {claim.text}
       <span className="evidence">
         {shown.map((e) => (
-          <button key={e.sessionId} className="chip" title={e.title} onClick={() => onOpen(e.sessionId)}>
+          <button type="button" key={e.sessionId} className="chip" title={e.title} onClick={() => onOpen(e.sessionId)}>
             {AGENT_LABEL[e.agent]} · {e.title.length > 14 ? e.title.slice(0, 14) + '…' : e.title}
           </button>
         ))}
         {claim.evidence.length > shown.length && (
-          <button className="chip more" onClick={() => setAll(true)} title="显示全部出处">
+          <button type="button" className="chip more" onClick={() => setAll(true)} title="显示全部出处">
             +{claim.evidence.length - shown.length}
           </button>
         )}

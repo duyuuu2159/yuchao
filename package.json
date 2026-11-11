@@ -14,12 +14,17 @@
   "scripts": {
     "yuchao": "node src/cli/main.ts",
     "test": "node --test \"test/**/*.test.ts\"",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"src/cli/secret.ts\" --test-coverage-lines=90 --test-coverage-branches=80 --test-coverage-functions=85 \"test/**/*.test.ts\"",
     "typecheck": "tsc -p . && tsc -p web",
+    "lint": "biome lint",
+    "format": "biome format --write",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage",
     "web:dev": "vite web",
     "web:build": "vite build web",
     "build:exe": "node scripts/build-exe.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.6",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

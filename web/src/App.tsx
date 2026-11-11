@@ -79,7 +79,7 @@ export function App() {
         </nav>
 
         <div className="side-foot">
-          <button className="side-btn primary" onClick={reindex} disabled={indexing} title="重新读取各个 agent 的会话文件，只处理有变化的">
+          <button type="button" className="side-btn primary" onClick={reindex} disabled={indexing} title="重新读取各个 agent 的会话文件，只处理有变化的">
             <Icon name="refresh" size={18} />
             <span>{indexing ? '索引中…' : '更新索引'}</span>
           </button>
@@ -88,7 +88,7 @@ export function App() {
             <Icon name="eye" size={18} />
             <span>显示原文</span>
           </label>
-          <button className="side-btn" onClick={() => setTheme(nextTheme.value)} title={`外观：${currentTheme.label}（点击切换到${nextTheme.label}）`}>
+          <button type="button" className="side-btn" onClick={() => setTheme(nextTheme.value)} title={`外观：${currentTheme.label}（点击切换到${nextTheme.label}）`}>
             <Icon name={currentTheme.icon} size={18} />
             <span>{currentTheme.label}</span>
           </button>
@@ -99,7 +99,7 @@ export function App() {
         {raw && (
           <div className="banner warn" role="status">
             <Icon name="eye" /> 正在显示原文：密码和密钥没有打码，截图或共享屏幕前请关掉。
-            <button className="link" onClick={() => setRaw(false)}>
+            <button type="button" className="link" onClick={() => setRaw(false)}>
               恢复打码
             </button>
           </div>
@@ -107,7 +107,7 @@ export function App() {
         {notice && (
           <div className={'banner' + (notice.error ? ' err' : '')} role="status">
             {notice.text}
-            <button className="link" onClick={() => setNotice(null)} aria-label="关闭提示">
+            <button type="button" className="link" onClick={() => setNotice(null)} aria-label="关闭提示">
               <Icon name="x" size={14} />
             </button>
           </div>

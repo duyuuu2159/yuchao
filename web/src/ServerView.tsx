@@ -35,13 +35,13 @@ export function ServerView({ raw }: { raw: boolean }) {
       ) : (
         <>
           {servers.length > 1 && (
-            <div className="seg" role="group" aria-label="选择服务器">
+            <fieldset className="seg" aria-label="选择服务器">
               {servers.map((s) => (
-                <button key={s.name} className={s.name === name ? 'on' : ''} onClick={() => setName(s.name)}>
+                <button type="button" key={s.name} className={s.name === name ? 'on' : ''} aria-pressed={s.name === name} onClick={() => setName(s.name)}>
                   {s.name}
                 </button>
               ))}
-            </div>
+            </fieldset>
           )}
           {name && <Report key={name + raw} name={name} raw={raw} />}
         </>
@@ -79,7 +79,7 @@ function Report({ name, raw }: { name: string; raw: boolean }) {
           {report.server.user}@{report.server.host} · {s.host} · 已运行 {uptime(s.uptime)} · 负载 {s.load.map((x) => x.toFixed(2)).join(' ')}
         </span>
         <span className="meta">检查于 {when(report.checkedAt)}</span>
-        <button onClick={() => load(true)} disabled={loading}>
+        <button type="button" onClick={() => load(true)} disabled={loading}>
           {loading ? '检查中…' : '重新检查'}
         </button>
       </div>
@@ -172,6 +172,7 @@ function Meter({ label, pct, detail }: { label: string; pct: number; detail: str
         <b>{label}</b> {pct}% <span className="meta">{detail}</span>
         {level !== 'ok' && <span className={'state ' + level}>{level === 'bad' ? '快满了' : '偏高'}</span>}
       </div>
+      {/* biome-ignore lint/a11y/useSemanticElements: 原生 <meter> 在各浏览器里外观不一致且难以定制，这里用 role="meter" 加完整的 aria-value 属性 */}
       <div className="meter-track" role="meter" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
         <div className={'meter-fill ' + level} style={{ width: pct + '%' }} />
       </div>

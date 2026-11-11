@@ -24,6 +24,7 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
   const [ignored, setIgnored] = useState<Set<string>>(new Set());
   const [reload, setReload] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reload 是「标记误报后重新扫描」的触发计数器，函数体里不需要读它
   useEffect(() => {
     setResult(null);
     Promise.all([api.scan(showIgnored), showIgnored ? api.scan(false) : null]).then(([all, active]) => {
@@ -99,15 +100,15 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
             <span className="meta">
               出现 {f.count} 次 · {f.sessionCount} 个会话 · {when(f.firstSeen)} → {when(f.lastSeen)}
             </span>
-            <button className="link" onClick={() => toggleIgnore(f)}>
+            <button type="button" className="link" onClick={() => toggleIgnore(f)}>
               {ignored.has(f.fingerprint) ? '取消误报标记' : '标记为误报'}
             </button>
           </header>
           <p className="advice">{RULE_ADVICE[f.ruleId]}</p>
           <ul>
-            {f.occurrences.slice(0, 5).map((o, i) => (
-              <li key={i}>
-                <button className="occ" onClick={() => onOpen(o.sessionId, o.seq)}>
+            {f.occurrences.slice(0, 5).map((o) => (
+              <li key={`${o.sessionId}:${o.where}:${o.seq}`}>
+                <button type="button" className="occ" onClick={() => onOpen(o.sessionId, o.seq)}>
                   <AgentBadge agent={o.agent} />
                   <span className="where">{o.where === 'title' ? '会话标题' : o.where}</span>
                   <span className="occ-title">{o.title ?? '（无标题）'}</span>

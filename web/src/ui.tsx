@@ -80,7 +80,7 @@ export function CopyButton({ text, label = '复制' }: { text: string; label?: s
     return () => clearTimeout(t);
   }, [done]);
   return (
-    <button className="copy" title={label} aria-label={label} onClick={() => navigator.clipboard.writeText(text).then(() => setDone(true), () => {})}>
+    <button type="button" className="copy" title={label} aria-label={label} onClick={() => navigator.clipboard.writeText(text).then(() => setDone(true), () => {})}>
       <Icon name={done ? 'check' : 'copy'} size={14} />
       {done ? '已复制' : ''}
     </button>
@@ -100,8 +100,9 @@ export function Cmd({ children }: { children: string }) {
 export function Skeleton({ lines = 3, height }: { lines?: number; height?: number }) {
   if (height) return <div className="skeleton block" style={{ height }} aria-hidden="true" />;
   return (
-    <div className="skeleton-lines" aria-busy="true" aria-label="加载中">
+    <div className="skeleton-lines" role="status" aria-busy="true" aria-label="加载中">
       {Array.from({ length: lines }, (_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: 占位条数量固定、没有内容，下标就是身份
         <div key={i} className="skeleton" style={{ width: `${[92, 78, 60, 85, 70][i % 5]}%` }} />
       ))}
     </div>

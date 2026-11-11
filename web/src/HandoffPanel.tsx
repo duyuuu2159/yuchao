@@ -34,6 +34,8 @@ export function HandoffPanel({ sessionId, agent, raw, onClose }: { sessionId: st
   }
 
   return (
+    // 点遮罩关闭只是鼠标用户的快捷方式；键盘用户用 Esc（<dialog> 原生支持）或右上角的关闭按钮
+    // biome-ignore lint/a11y/useKeyWithClickEvents: 见上一行
     <dialog ref={ref} className="handoff" onClose={onClose} onClick={(e) => e.target === ref.current && ref.current.close()} aria-labelledby="handoff-title">
       <header className="handoff-head">
         <div>
@@ -43,7 +45,7 @@ export function HandoffPanel({ sessionId, agent, raw, onClose }: { sessionId: st
           </h2>
           <p>额度用完、上下文太长、或者想换个模型试试时用。鱼巢在本地从会话记录里整理出目标、改过的文件、命令和报错，不调用大模型，也不花钱。</p>
         </div>
-        <button className="icon-btn" onClick={() => ref.current?.close()} aria-label="关闭">
+        <button type="button" className="icon-btn" onClick={() => ref.current?.close()} aria-label="关闭">
           <Icon name="x" />
         </button>
       </header>
@@ -54,16 +56,16 @@ export function HandoffPanel({ sessionId, agent, raw, onClose }: { sessionId: st
           <AgentBadge agent={agent} />
         </span>
         <Icon name="arrow" />
-        <div className="seg" role="group" aria-label="交给哪个 agent">
+        <fieldset className="seg" aria-label="交给哪个 agent">
           {AGENTS.filter((a) => a !== agent).map((a) => (
-            <button key={a} className={to === a ? 'on' : ''} aria-pressed={to === a} onClick={() => setTo(a)}>
+            <button type="button" key={a} className={to === a ? 'on' : ''} aria-pressed={to === a} onClick={() => setTo(a)}>
               {AGENT_LABEL[a]}
             </button>
           ))}
-          <button className={to === undefined ? 'on' : ''} aria-pressed={to === undefined} onClick={() => setTo(undefined)}>
+          <button type="button" className={to === undefined ? 'on' : ''} aria-pressed={to === undefined} onClick={() => setTo(undefined)}>
             不指定
           </button>
-        </div>
+        </fieldset>
       </div>
 
       {error ? (
@@ -87,20 +89,20 @@ export function HandoffPanel({ sessionId, agent, raw, onClose }: { sessionId: st
             </li>
           </ul>
           <div className="handoff-body">
-            <div className="seg small" role="group" aria-label="显示方式">
-              <button className={view === 'preview' ? 'on' : ''} onClick={() => setView('preview')}>
+            <fieldset className="seg small" aria-label="显示方式">
+              <button type="button" className={view === 'preview' ? 'on' : ''} aria-pressed={view === 'preview'} onClick={() => setView('preview')}>
                 预览
               </button>
-              <button className={view === 'source' ? 'on' : ''} onClick={() => setView('source')}>
+              <button type="button" className={view === 'source' ? 'on' : ''} aria-pressed={view === 'source'} onClick={() => setView('source')}>
                 原文
               </button>
-            </div>
+            </fieldset>
             {view === 'preview' ? <Markdown text={h.markdown} /> : <pre className="handoff-source">{h.markdown}</pre>}
           </div>
           {raw && <p className="handoff-warn">「显示原文」开着：这份说明里的密码和密钥没有打码，粘贴到别处前请确认。</p>}
           <footer className="handoff-foot">
             <span className="meta">复制后，在{to ? ` ${AGENT_LABEL[to]} ` : '新的 agent '}里开一个新对话，直接粘贴。</span>
-            <button className="btn ghost" onClick={download}>
+            <button type="button" className="btn ghost" onClick={download}>
               下载 .md
             </button>
             <CopyBig text={h.markdown} />
@@ -119,7 +121,7 @@ function CopyBig({ text }: { text: string }) {
     return () => clearTimeout(t);
   }, [done]);
   return (
-    <button className="btn cta" onClick={() => navigator.clipboard.writeText(text).then(() => setDone(true), () => {})}>
+    <button type="button" className="btn cta" onClick={() => navigator.clipboard.writeText(text).then(() => setDone(true), () => {})}>
       <Icon name={done ? 'check' : 'copy'} />
       {done ? '已复制，去粘贴吧' : '复制交接说明'}
     </button>

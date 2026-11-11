@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["src/**", "web/src/**", "test/**", "scripts/**", "*.json", "*.jsonc", "!test/fixtures/**"] },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 140
+  },
+  "javascript": { "formatter": { "quoteStyle": "single", "jsxQuoteStyle": "double", "trailingCommas": "all", "semicolons": "always" } },
+  "css": { "formatter": { "enabled": false } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        // 字符串拼接和模板字符串各有适合的场合，不强制统一
+        "useTemplate": "off",
+        // 选择器顺序按页面区块组织，比按优先级排序更好维护
+        "noDescendingSpecificity": "off"
+      },
+      "suspicious": {
+        // 解析器面对的是各家 agent 未公开的 JSON 格式，入口处用 any，再在函数内收窄；保留为警告，逐步减少
+        "noExplicitAny": "warn"
+      }
+    }
+  },
+  "overrides": [
+    {
+      // Markdown 渲染结果每次重新生成，节点没有局部状态、不会重排，下标就是稳定的 key
+      "includes": ["web/src/Markdown.tsx"],
+      "linter": { "rules": { "suspicious": { "noArrayIndexKey": "off" } } }
+    },
+    {
+      // 测试里用 ! 断言 fixture 一定存在，比层层判空更直接
+      "includes": ["test/**"],
+      "linter": { "rules": { "style": { "noNonNullAssertion": "off" } } }
+    }
+  ]
+}

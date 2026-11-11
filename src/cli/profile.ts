@@ -125,7 +125,9 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       console.log(`最活跃的时段：${peak}:00–${peak + 1}:00`);
       console.log('\n各时段消息数：');
       const max = Math.max(...st.byHour, 1);
-      st.byHour.forEach((n, h) => console.log(`  ${String(h).padStart(2)}点 ${'█'.repeat(Math.round((n / max) * 30))} ${dim(String(n))}`));
+      st.byHour.forEach((n, h) => {
+        console.log(`  ${String(h).padStart(2)}点 ${'█'.repeat(Math.round((n / max) * 30))} ${dim(String(n))}`);
+      });
       console.log(`\n项目：${st.topProjects.map((p) => `${p.name}(${p.sessions})`).join('  ')}`);
       console.log(`agent 最常用的工具：${st.topTools.map((t) => `${t.name}(${t.calls})`).join('  ')}`);
       console.log(`你最常说的话：${st.topPhrases.map((p) => `「${p.text}」×${p.count}`).join('  ')}`);
@@ -161,7 +163,7 @@ export async function runProfile(store: Store, sub: string | undefined, flags: P
       }
       const llm = makeLlm(conn, model, provider);
       console.error(`发送到 ${dest}，模型 ${model}`);
-      let v;
+      let v: Awaited<ReturnType<typeof buildProfile>>;
       try {
         v = await buildProfile(store, llm, {
           scope,

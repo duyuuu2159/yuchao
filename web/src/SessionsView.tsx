@@ -55,10 +55,12 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey 是「更新索引后重新加载」的触发计数器
   useEffect(() => {
     api.sessions(agent, raw).then(setSessions, (e) => setError(e.message));
   }, [agent, raw, reloadKey]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey 是「更新索引后重新加载」的触发计数器
   useEffect(() => {
     if (!q) return setHits(null);
     let stale = false;
@@ -95,13 +97,13 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
             <kbd>/</kbd>
           </label>
           <div className="filters">
-            <div className="seg" role="group" aria-label="按 agent 筛选">
+            <fieldset className="seg" aria-label="按 agent 筛选">
               {[undefined, ...AGENTS].map((a) => (
-                <button key={a ?? 'all'} className={agent === a ? 'on' : ''} aria-pressed={agent === a} onClick={() => setAgent(a)}>
+                <button type="button" key={a ?? 'all'} className={agent === a ? 'on' : ''} aria-pressed={agent === a} onClick={() => setAgent(a)}>
                   {a ? AGENT_LABEL[a] : '全部'}
                 </button>
               ))}
-            </div>
+            </fieldset>
             {q && (
               <label className="check" title="同时搜索 agent 执行的命令和工具输出">
                 <input type="checkbox" checked={withTools} onChange={(e) => setWithTools(e.target.checked)} />
@@ -118,7 +120,7 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
               <div className="list-count">找到 {hits.length >= 100 ? '100+' : hits.length} 条</div>
               {hits.length === 0 && <Empty title="没有结果">两个字以下的词会逐条扫描，可以换个说法，或者勾选「含工具调用」。</Empty>}
               {hits.map((h) => (
-                <button key={h.messageId} className={'item' + (openId === h.sessionId && focusSeq === h.seq ? ' active' : '')} onClick={() => onOpen(h.sessionId, h.seq)}>
+                <button type="button" key={h.messageId} className={'item' + (openId === h.sessionId && focusSeq === h.seq ? ' active' : '')} onClick={() => onOpen(h.sessionId, h.seq)}>
                   <div className="title">{h.title ?? '（无标题）'}</div>
                   <div className="snippet">
                     <span className="role">{h.role === 'user' ? '你' : h.role === 'assistant' ? 'agent' : h.toolName ?? h.role}</span>
@@ -145,7 +147,7 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
                   {label} <span>{rows.length}</span>
                 </h2>
                 {rows.map((s) => (
-                  <button key={s.id} className={'item' + (openId === s.id ? ' active' : '')} onClick={() => onOpen(s.id)}>
+                  <button type="button" key={s.id} className={'item' + (openId === s.id ? ' active' : '')} onClick={() => onOpen(s.id)}>
                     <div className="title">{s.title ?? '（无标题）'}</div>
                     <div className="item-meta">
                       <AgentBadge agent={s.agent} />
@@ -194,6 +196,7 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
     if (m && (m.role === 'tool_call' || m.role === 'tool_result' || m.role === 'context')) setShowTools(true);
   }, [s, focusSeq]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 这三个值变化后 DOM 会变（换会话、换定位、展开工具），需要重新滚动到命中的消息
   useEffect(() => {
     focusRef.current?.scrollIntoView({ block: 'center' });
   }, [s, focusSeq, showTools]);
@@ -214,12 +217,12 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
     <article>
       <header className="reader-head">
         <div className="reader-inner">
-          <button className="back" onClick={() => onOpen(null)}>
+          <button type="button" className="back" onClick={() => onOpen(null)}>
             <Icon name="back" /> 返回列表
           </button>
           <div className="reader-title">
             <h1>{s.title ?? '（无标题）'}</h1>
-            <button className="btn cta small" onClick={() => setRelay(true)} title="把这个会话整理成交接说明，粘贴给另一个 agent 接着做">
+            <button type="button" className="btn cta small" onClick={() => setRelay(true)} title="把这个会话整理成交接说明，粘贴给另一个 agent 接着做">
               <Icon name="relay" /> 接力
             </button>
           </div>
@@ -249,13 +252,13 @@ function SessionView({ id, raw, focusSeq, terms, onOpen }: { id: string; raw: bo
         {(s.parentId || s.children.length > 0) && (
           <div className="children">
             {s.parentId && (
-              <button className="chip" onClick={() => onOpen(s.parentId!)}>
+              <button type="button" className="chip" onClick={() => onOpen(s.parentId!)}>
                 <Icon name="back" size={12} /> 父会话
               </button>
             )}
             {s.children.length > 0 && <span>子 agent</span>}
             {s.children.map((c) => (
-              <button key={c.id} className="chip" onClick={() => onOpen(c.id)}>
+              <button type="button" key={c.id} className="chip" onClick={() => onOpen(c.id)}>
                 {c.title ?? c.id}
               </button>
             ))}

@@ -25,7 +25,7 @@ export function ConfigView() {
       <PageHeader kicker="04 · 配置" title="配置管家" desc="记录各 agent 配置文件的每个版本，旁边散落的旧备份也整理进同一条时间线。内容里的 key、密码已打码。回滚会改写配置文件，只能在命令行里执行。" />
       <div className="config-files">
         {files.map((f) => (
-          <button key={f.path} className={'config-file' + (f.path === path ? ' active' : '')} disabled={!f.versions} onClick={() => setPath(f.path)}>
+          <button type="button" key={f.path} className={'config-file' + (f.path === path ? ' active' : '')} disabled={!f.versions} onClick={() => setPath(f.path)}>
             <b>{f.name}</b>
             <span className={'state ' + (!f.exists ? 'muted' : f.error ? 'bad' : f.changed ? 'warn' : 'ok')}>
               {!f.exists ? (f.versions ? '已删除' : '不存在') : f.error ? '当前文件损坏' : f.changed ? '有未记录的修改' : '正常'}
@@ -72,7 +72,7 @@ function Timeline({ path }: { path: string }) {
       <ol className="timeline">
         {versions.map((v) => (
           <li key={v.id}>
-            <button className={'version' + (v.id === selected ? ' active' : '') + (v.error ? ' broken' : '')} onClick={() => setSelected(v.id)}>
+            <button type="button" className={'version' + (v.id === selected ? ' active' : '') + (v.error ? ' broken' : '')} onClick={() => setSelected(v.id)}>
               <span className="vid">#{v.id}</span>
               <span className="vtime">{when(v.capturedAt)}</span>
               <span className={'state ' + (v.error ? 'bad' : 'ok')}>{v.error ? '损坏' : '正常'}</span>
@@ -86,14 +86,14 @@ function Timeline({ path }: { path: string }) {
       <section className="version-detail">
         {selected !== null && (
           <>
-            <div className="seg" role="group" aria-label="对比对象">
-              <button className={against === 'previous' ? 'on' : ''} onClick={() => setAgainst('previous')}>
+            <fieldset className="seg" aria-label="对比对象">
+              <button type="button" className={against === 'previous' ? 'on' : ''} aria-pressed={against === 'previous'} onClick={() => setAgainst('previous')}>
                 相比上一个版本
               </button>
-              <button className={against === 'current' ? 'on' : ''} onClick={() => setAgainst('current')}>
+              <button type="button" className={against === 'current' ? 'on' : ''} aria-pressed={against === 'current'} onClick={() => setAgainst('current')}>
                 和当前文件对比
               </button>
-            </div>
+            </fieldset>
             {versions.find((v) => v.id === selected)?.error && <p className="err">这个版本已损坏：{versions.find((v) => v.id === selected)!.error}</p>}
             <p className="meta">
               回滚到这个版本：<Cmd>{`yuchao config restore ${selected}`}</Cmd> 先预览改动，确认后加 --yes
@@ -116,10 +116,11 @@ function DiffView({ diff }: { diff: ConfigDiff | null }) {
         {diff.from} → {diff.to} · <span className="add">+{d.added}</span> <span className="del">−{d.removed}</span>
       </div>
       {d.hunks.length === 0 && <div className="empty">内容相同。</div>}
-      {d.hunks.map((h, i) => (
-        <pre key={i} className="hunk">
-          {h.lines.map((l, j) => (
-            <div key={j} className={'dl ' + l.kind}>
+      {d.hunks.map((h) => (
+        <pre key={`${h.oldStart}:${h.newStart}`} className="hunk">
+          {h.lines.map((l) => (
+            // 删除行的旧行号唯一、新增行的新行号唯一、上下文行两个都有，组合起来在一段里不会重复
+            <div key={`${l.kind}:${l.oldNo ?? ''}:${l.newNo ?? ''}`} className={'dl ' + l.kind}>
               <span className="ln">{l.oldNo ?? ''}</span>
               <span className="ln">{l.newNo ?? ''}</span>
               <span className="mark">{l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ' '}</span>

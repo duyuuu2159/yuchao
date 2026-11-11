@@ -24,7 +24,10 @@ export async function runDesktop(port: number) {
     let shown = 0;
     const r = await store.index(defaultSourceDirs(), (done, total) => {
       const pct = Math.floor((done / total) * 10) * 10;
-      if (pct > shown) process.stdout.write(`  ${(shown = pct)}%`);
+      if (pct > shown) {
+        shown = pct;
+        process.stdout.write(`  ${pct}%`);
+      }
     });
     console.log(`\n已更新 ${r.indexed} 个会话文件，${r.skipped} 个没有变化，用时 ${(r.ms / 1000).toFixed(1)} 秒`);
     if (r.errors.length) console.log(`${r.errors.length} 个文件解析失败，可以在命令行运行 yuchao index 查看详情`);

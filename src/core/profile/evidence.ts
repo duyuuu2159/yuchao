@@ -78,7 +78,10 @@ function uniqueUserMessages(store: Store): Map<string, UserRow[]> {
     if (seen.has(key)) continue;
     seen.add(key);
     let list = bySession.get(r.session_id);
-    if (!list) bySession.set(r.session_id, (list = []));
+    if (!list) {
+      list = [];
+      bySession.set(r.session_id, list);
+    }
     list.push(r);
   }
   return bySession;

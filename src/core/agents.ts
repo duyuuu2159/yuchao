@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { type Dirent, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadCodexTitles, parseCodexFile } from './parsers/codex.ts';
 import { parseClaudeFile } from './parsers/claude.ts';
@@ -26,7 +26,7 @@ export interface AgentAdapter {
 }
 
 export function walk(dir: string, keep: (name: string) => boolean, out: string[] = []): string[] {
-  let entries;
+  let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch (e: any) {

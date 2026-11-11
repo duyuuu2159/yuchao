@@ -171,7 +171,9 @@ export function renderHandoff(f: HandoffFacts, to?: AgentKind, budget = 6000): s
     if (f.goal) lines.push('', '## 最初的目标', quote(clip(f.goal, askMax * 2)));
     if (f.recentAsks.length) {
       lines.push('', '## 后来补充的要求（从旧到新）');
-      f.recentAsks.slice(level >= 2 ? -3 : 0).forEach((a, i) => lines.push(`${i + 1}. ${clip(a.replace(/\n+/g, ' '), askMax)}`));
+      f.recentAsks.slice(level >= 2 ? -3 : 0).forEach((a, i) => {
+        lines.push(`${i + 1}. ${clip(a.replace(/\n+/g, ' '), askMax)}`);
+      });
     }
     if (f.files.length) {
       lines.push('', '## 改过的文件（最近改的在前）');

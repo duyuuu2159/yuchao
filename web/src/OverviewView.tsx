@@ -7,6 +7,7 @@ import { AgentBadge, Cmd, Icon, Skeleton, Status, type IconName, type View } fro
 /** 加载一份数据：undefined 表示还在加载，Error 表示失败 */
 function useLoad<T>(load: () => Promise<T>, key: number): T | Error | undefined {
   const [v, setV] = useState<T | Error | undefined>();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: load 每次渲染都是新函数，放进依赖会无限请求；只在 key（更新索引次数）变化时重新加载
   useEffect(() => {
     let stale = false;
     load().then(
@@ -68,7 +69,7 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
               <Skeleton lines={2} />
             ) : (
               <>
-                <button className="btn cta" onClick={() => setRelayOpen(true)}>
+                <button type="button" className="btn cta" onClick={() => setRelayOpen(true)}>
                   <Icon name="relay" /> 接力上次的工作
                 </button>
                 <p className="meta relay-hint">
@@ -184,7 +185,7 @@ function Card({ icon, title, view, go, action, children }: { icon: IconName; tit
         <Icon name={icon} /> {title}
       </h2>
       <div className="card-body">{children}</div>
-      <button className="card-link" onClick={() => go(view)}>
+      <button type="button" className="card-link" onClick={() => go(view)}>
         {action} <Icon name="arrow" size={14} />
       </button>
     </section>
@@ -340,7 +341,7 @@ function Recent({ sessions, go }: { sessions: SessionRow[] | Error | undefined }
         <ul>
           {sessions.slice(0, 6).map((s) => (
             <li key={s.id}>
-              <button onClick={() => go('sessions', s.id)}>
+              <button type="button" onClick={() => go('sessions', s.id)}>
                 <span className="title">{s.title ?? '（无标题）'}</span>
                 <AgentBadge agent={s.agent} />
                 <span className="meta">{when(s.updatedAt)}</span>

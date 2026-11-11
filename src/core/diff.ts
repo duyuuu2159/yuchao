@@ -35,8 +35,8 @@ function lineDiff(a: string[], b: string[]): DiffLine[] {
   const m = midB.length;
   if (n * m > MAX_CELLS) {
     // 太大时退化为「整段删除 + 整段新增」，结果仍然正确，只是不够精细
-    midA.forEach((t, i) => out.push({ kind: 'del', text: t, oldNo: start + i + 1, newNo: null }));
-    midB.forEach((t, j) => out.push({ kind: 'add', text: t, oldNo: null, newNo: start + j + 1 }));
+    for (const [i, t] of midA.entries()) out.push({ kind: 'del', text: t, oldNo: start + i + 1, newNo: null });
+    for (const [j, t] of midB.entries()) out.push({ kind: 'add', text: t, oldNo: null, newNo: start + j + 1 });
   } else {
     // lcs[i][j] = midA[i..] 与 midB[j..] 的最长公共子序列长度
     const w = m + 1;
@@ -83,7 +83,10 @@ export function diffText(oldText: string, newText: string, context = 3): DiffRes
     const from = Math.max(0, i - context);
     const to = Math.min(lines.length - 1, i + context);
     if (current && from <= current.to + 1) current.to = to;
-    else ranges.push((current = { from, to }));
+    else {
+      current = { from, to };
+      ranges.push(current);
+    }
   }
   for (const r of ranges) {
     const slice = lines.slice(r.from, r.to + 1);

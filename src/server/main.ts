@@ -224,7 +224,10 @@ export function serveStatic(path: string, res: ServerResponse, read = readWebFil
   let rel = parts.join('/') || 'index.html';
   let body = read(rel);
   // 前端是单页应用，找不到的路径都交给 index.html
-  if (!body) body = read((rel = 'index.html'));
+  if (!body) {
+    rel = 'index.html';
+    body = read(rel);
+  }
   if (!body) {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     return res.end('网页界面还没有构建，请先运行 npm run web:build');

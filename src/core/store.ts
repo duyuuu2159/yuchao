@@ -1,4 +1,4 @@
-import { mkdirSync, statSync } from 'node:fs';
+import { mkdirSync, type Stats, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -162,7 +162,7 @@ export class Store {
     let done = 0;
     for (const f of files) {
       done++;
-      let st;
+      let st: Stats;
       try {
         st = statSync(f.path);
       } catch {

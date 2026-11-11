@@ -48,7 +48,7 @@ export async function runServer(store: Store, args: string[], flags: ServerFlags
   switch (sub) {
     case 'add': {
       if (!a || !b) fail('用法：yuchao server add <名字> <用户名@主机[:端口]> [--url https://域名]');
-      let target;
+      let target: ReturnType<typeof parseTarget>;
       try {
         target = parseTarget(b);
       } catch (e: any) {
