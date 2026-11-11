@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { appendFileSync, copyFileSync, cpSync, mkdtempSync, rmSync, utimesSync } from 'node:fs';
+import { appendFileSync, copyFileSync, cpSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -145,6 +145,68 @@ test('解析器版本变化后，已有索引会被清空并重建', async () =>
   assert.equal(b.listSessions().length, 0);
   assert.equal((await b.index(dirs)).indexed, 4);
   b.close();
+});
+
+/** FTS5 自带的一致性检查：rank 写 1 时连同外部内容表一起比对，索引和 messages 表有任何不一致都会抛错 */
+function assertFtsConsistent(store: Store) {
+  assert.doesNotThrow(() => store.db.exec(`INSERT INTO messages_fts(messages_fts, rank) VALUES ('integrity-check', 1)`));
+}
+const triggers = (store: Store) =>
+  (store.db.prepare(`SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name`).all() as { name: string }[]).map((r) => r.name);
+
+test('首次索引走批量模式：结束后触发器恢复，全文索引和数据表一致', async () => {
+  const { dirs, store } = setup();
+  await store.index(dirs);
+  assert.deepEqual(triggers(store), ['messages_ad', 'messages_ai']);
+  assertFtsConsistent(store);
+  // 之后的增量更新走触发器，同样保持一致
+  const path = join(dirs.codex!, '..', C1);
+  appendFileSync(
+    path,
+    JSON.stringify({
+      timestamp: '2026-11-01T10:00:00.000Z',
+      type: 'response_item',
+      payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '批量之后再追加' }] },
+    }) + '\n',
+  );
+  utimesSync(path, new Date(), new Date());
+  assert.equal((await store.index(dirs)).indexed, 1);
+  assert.equal(store.search('批量之后再追加').length, 1);
+  assertFtsConsistent(store);
+});
+
+test('批量模式下同一个会话出现在两个文件里：只保留一份，全文索引和数据表一致', async () => {
+  const { dirs, store } = setup();
+  // 同名文件放在另一个项目目录：解析出相同的会话 id，第二个会先删掉第一个写入的消息
+  const other = join(dirs.claude!, 'projects', 'G--other');
+  cpSync(join(dirs.claude!, 'projects', 'G--demo', 's1.jsonl'), join(other, 's1.jsonl'), { recursive: true });
+  await store.index(dirs);
+  assertFtsConsistent(store);
+  assert.equal(store.search('nginx 配置').length, 1);
+});
+
+test('批量模式中途出错时整体回滚：没有半截索引，触发器仍在，下次可以重新建', async () => {
+  const { dirs, store } = setup();
+  await assert.rejects(
+    store.index(dirs, (done) => {
+      if (done === 2) throw new Error('模拟中途退出');
+    }),
+    /模拟中途退出/,
+  );
+  assert.deepEqual(triggers(store), ['messages_ad', 'messages_ai']);
+  assert.equal(store.listSessions({ includeSubagents: true }).length, 0);
+  assert.equal((await store.index(dirs)).indexed, 4);
+  assertFtsConsistent(store);
+});
+
+test('批量模式下单个文件解析失败只跳过它自己', async () => {
+  const { dirs, store } = setup();
+  // 一个损坏的压缩会话文件：解压时一定会报错
+  writeFileSync(join(dirs.codex!, 'sessions', '2026', '11', '01', 'rollout-2026-11-01T11-00-00-bad.jsonl.zst'), 'not zstd at all');
+  const r = await store.index(dirs);
+  assert.equal(r.errors.length, 1);
+  assert.equal(r.indexed, 4);
+  assertFtsConsistent(store);
 });
 
 test('摘要截取命中位置附近的文字', () => {

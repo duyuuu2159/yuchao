@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { AGENTS, adapter } from './agents.ts';
 import { redact } from './scan.ts';
-import { discover, type SourceDirs } from './sources.ts';
+import { discover, type SourceDirs, type SourceFile } from './sources.ts';
 import type { AgentKind, Role, Session } from './types.ts';
 
 /** 解析器或表结构有变化时加 1，已有的索引会在下次打开时清空重建 */
@@ -13,6 +13,15 @@ export const PARSER_VERSION = 7;
 export function defaultDbPath(): string {
   return process.env.YUCHAO_DB ?? join(homedir(), '.yuchao', 'index.db');
 }
+
+/** 让全文索引跟着 messages 表自动更新。首次建索引时会暂时去掉它们，见 Store.index */
+const FTS_TRIGGERS = `
+CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+  INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
+END;`;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS files (
@@ -46,16 +55,14 @@ CREATE TABLE IF NOT EXISTS messages (
   text       TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS messages_session ON messages(session_id, seq);
+-- 搜索默认只看用户和 agent 的话，而工具调用和工具输出占了消息的八成以上。
+-- 有了这个索引，两字词的 LIKE 扫描只需要扫对话，真实数据上从 79 毫秒降到 16 毫秒（见 docs/perf.md）
+CREATE INDEX IF NOT EXISTS messages_role_ts ON messages(role, ts);
 -- trigram 分词把文本切成连续三个字的片段，不需要中文分词词典也能搜中文
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
   text, content='messages', content_rowid='id', tokenize='trigram'
 );
-CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-  INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
-END;
-CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
-  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
-END;
+${FTS_TRIGGERS}
 -- 用户标记为误报的扫描结果，只存指纹，不存原文；重建索引时保留
 CREATE TABLE IF NOT EXISTS scan_ignores (
   fingerprint TEXT PRIMARY KEY,
@@ -119,6 +126,9 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
+    // 页缓存上限从默认的 2 MB 调到 64 MB（按需占用）。搜索要按命中的 id 逐条回表，
+    // 缓存太小时几乎每次都要重新读页：10 万条消息的基准里，常见词的搜索因此慢了 4 倍（见 docs/perf.md）
+    this.db.exec('PRAGMA cache_size = -65536;');
     this.db.exec(SCHEMA);
     // 解析规则改变后，没改动的文件也要重新解析，否则旧结果会一直留在库里
     const { user_version } = this.db.prepare('PRAGMA user_version').get() as { user_version: number };
@@ -159,6 +169,51 @@ export class Store {
       }
     }
 
+    // 首次建索引（包括解析规则升级后清空重建）走批量模式：先只写 messages 表，最后一次性重建全文索引。
+    // trigram 全文索引逐行更新时，写库时间有九成花在它身上；10 万条消息一次性重建要 1.5 秒，逐行要 9 秒（见 docs/perf.md）。
+    // 日常增量只改几个文件，继续用触发器逐行更新——一次性重建要把全表重算一遍，对增量反而更慢。
+    const bulk = known.size === 0 && files.length > 0;
+    if (bulk) {
+      // 整个批量过程在一个事务里：中途出错或进程被杀，数据库回到开始前的样子，不会留下「触发器没了、索引建了一半」的状态
+      this.db.exec('BEGIN');
+      // 删除触发器也去掉：最后的 rebuild 会丢掉索引里的全部旧数据重新计算，批量过程中逐条写删除记录纯属白做
+      this.db.exec('DROP TRIGGER messages_ai; DROP TRIGGER messages_ad;');
+    }
+    try {
+      await this.indexFiles(files, known, titles, bulk, result, onProgress);
+      if (bulk) {
+        this.db.exec(`INSERT INTO messages_fts(messages_fts) VALUES ('rebuild')`);
+        // rebuild 留下的段结构会让之后每次增量写入都触发昂贵的自动合并（实测增量更新从 0.2 秒变成 1.2 秒），
+        // 整理成一个段之后增量写入反而比逐行建出来的索引更快
+        this.db.exec(`INSERT INTO messages_fts(messages_fts) VALUES ('optimize')`);
+        this.db.exec(FTS_TRIGGERS);
+        this.db.exec('COMMIT');
+        // 一个大事务会让 WAL 文件涨到和数据库差不多大；不在这里收尾，下一次写入就要替它把几十 MB 搬回主库
+        this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+      }
+    } catch (e) {
+      if (bulk) this.db.exec('ROLLBACK');
+      throw e;
+    }
+
+    // 例如 Codex 改名只写 session_index，不动会话文件，所以每次都同步一遍标题
+    const rename = this.db.prepare('UPDATE sessions SET title = ? WHERE id = ? AND agent = ?');
+    this.transaction(() => {
+      for (const [agent, map] of titles) for (const [id, title] of map) rename.run(title, `${agent}:${id}`, agent);
+    });
+
+    result.ms = Math.round(performance.now() - t0);
+    return result;
+  }
+
+  private async indexFiles(
+    files: SourceFile[],
+    known: Map<string, { mtime_ms: number; size: number }>,
+    titles: Map<string, Map<string, string>>,
+    bulk: boolean,
+    result: IndexResult,
+    onProgress?: (done: number, total: number) => void,
+  ) {
     let done = 0;
     for (const f of files) {
       done++;
@@ -174,7 +229,8 @@ export class Store {
       } else {
         try {
           const session = await adapter(f.agent).parse(f.path, titles.get(f.agent) ?? new Map());
-          this.transaction(() => {
+          // 批量模式下外层已经有事务，用 SAVEPOINT 让一个文件出错时只撤销它自己
+          (bulk ? this.savepoint : this.transaction).call(this, () => {
             this.removeFile(f.path);
             this.writeSession(session);
             this.db
@@ -188,15 +244,17 @@ export class Store {
       }
       onProgress?.(done, files.length);
     }
+  }
 
-    // 例如 Codex 改名只写 session_index，不动会话文件，所以每次都同步一遍标题
-    const rename = this.db.prepare('UPDATE sessions SET title = ? WHERE id = ? AND agent = ?');
-    this.transaction(() => {
-      for (const [agent, map] of titles) for (const [id, title] of map) rename.run(title, `${agent}:${id}`, agent);
-    });
-
-    result.ms = Math.round(performance.now() - t0);
-    return result;
+  private savepoint(fn: () => void) {
+    this.db.exec('SAVEPOINT file');
+    try {
+      fn();
+      this.db.exec('RELEASE file');
+    } catch (e) {
+      this.db.exec('ROLLBACK TO file; RELEASE file');
+      throw e;
+    }
   }
 
   private transaction(fn: () => void) {
@@ -267,7 +325,9 @@ export class Store {
       params.push(`%${t.replace(/[\\%_]/g, (c) => '\\' + c)}%`);
     }
     const roles = opts.roles ?? DEFAULT_ROLES;
-    where.push(`m.role IN (${roles.map(() => '?').join(',')})`);
+    // 有全文检索词时，命中的 id 由全文索引给出，应该拿这些 id 去查；m.role 前面的一元 + 让 SQLite 别用角色索引，
+    // 否则它会改成先扫一遍全部对话再逐条比对全文命中，常见词慢一倍。只有两字词时才需要角色索引来缩小 LIKE 的扫描范围
+    where.push(`${long.length ? '+' : ''}m.role IN (${roles.map(() => '?').join(',')})`);
     params.push(...roles);
     if (opts.agent) {
       where.push('s.agent = ?');
@@ -281,12 +341,19 @@ export class Store {
     // 多取一些，给去重留余量
     params.push(limit * 4);
 
+    // 分两步：先只用小字段（id、时间）排出最新的 N 条，再按 id 取回正文和会话信息。
+    // 常见词会命中几千条，一步到位的话排序要带着几千段正文，两步走快一倍（见 docs/perf.md）
     const rows = this.db
       .prepare(
-        `SELECT m.id, m.session_id, m.seq, m.ts, m.role, m.tool_name, m.text, s.title, s.agent, s.cwd, s.started_at
-         FROM messages m JOIN sessions s ON s.id = m.session_id
-         WHERE ${where.join(' AND ')}
-         ORDER BY m.ts DESC, s.started_at ASC, s.id ASC LIMIT ?`,
+        `WITH top AS (
+           SELECT m.id, m.ts, s.started_at, s.id AS sid
+           FROM messages m JOIN sessions s ON s.id = m.session_id
+           WHERE ${where.join(' AND ')}
+           ORDER BY m.ts DESC, s.started_at ASC, s.id ASC LIMIT ?
+         )
+         SELECT m.id, m.session_id, m.seq, m.ts, m.role, m.tool_name, m.text, s.title, s.agent, s.cwd, s.started_at
+         FROM top JOIN messages m ON m.id = top.id JOIN sessions s ON s.id = top.sid
+         ORDER BY top.ts DESC, top.started_at ASC, top.sid ASC`,
       )
       .all(...params) as any[];
 
