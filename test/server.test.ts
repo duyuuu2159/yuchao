@@ -201,3 +201,34 @@ test('网页文件：挡住 .. 、反斜杠和盘符，找不到的路径回到 
   assert.equal(call('/server').body, 'index.html');
   assert.equal(call('/').body, 'index.html');
 });
+
+function headersOf(path: string, headers: Record<string, string> = {}): Promise<{ status: number; headers: Record<string, unknown> }> {
+  return new Promise((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, method: 'GET', path, headers }, (res) => {
+      res.resume();
+      res.on('end', () => resolve({ status: res.statusCode!, headers: res.headers }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+test('每个响应都带安全头：CSP 禁止内联脚本和外部资源，不能被嵌进 iframe', async () => {
+  for (const [path, extra] of [
+    ['/api/stats', {}],
+    ['/', {}],
+    ['/sessions/whatever', {}],
+    ['/api/stats', { host: 'evil.example.com' }], // 被拒绝的请求也要带
+  ] as const) {
+    const { headers } = await headersOf(path, extra);
+    const csp = String(headers['content-security-policy']);
+    assert.match(csp, /script-src 'self'(;|$)/, `${path}: script-src 只允许自己`);
+    assert.doesNotMatch(csp, /script-src[^;]*unsafe-inline/, `${path}: 不允许内联脚本`);
+    assert.match(csp, /frame-ancestors 'none'/);
+    assert.match(csp, /connect-src 'self'/);
+    assert.match(csp, /object-src 'none'/);
+    assert.equal(headers['x-content-type-options'], 'nosniff');
+    assert.equal(headers['referrer-policy'], 'no-referrer');
+  }
+  assert.equal((await headersOf('/api/stats')).headers['cache-control'], 'no-store');
+});

@@ -46,6 +46,28 @@ export function isAllowedHost(host: string | undefined): boolean {
 
 export const WRITE_HEADER = 'x-yuchao';
 
+/**
+ * 每个响应都带的安全头。会话内容来自 agent，属于不可信数据：网页渲染时只生成 React 节点、不用 innerHTML，
+ * CSP 是万一哪里漏了之后的最后一道防线——禁止内联脚本和外部资源，即使注入了 <script> 也不会执行，也连不到外面。
+ */
+export const SECURITY_HEADERS: Record<string, string> = {
+  'content-security-policy': [
+    "default-src 'self'",
+    "script-src 'self'", // 没有 'unsafe-inline'：明暗模式脚本单独放在 /theme.js
+    "style-src 'self' 'unsafe-inline'", // React 的 style 属性需要
+    "img-src 'self' data:", // 标签页图标是 data: URI
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'", // 不能被别的网页嵌进 iframe（点击劫持）
+  ].join('; '),
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-origin',
+};
+
 export interface AppOptions {
   /** 测试时替换掉真实的服务器列表和 ssh 连接 */
   servers?: () => ServerConfig[];
@@ -64,6 +86,9 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
   return async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const path = url.pathname;
+    for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+    // 接口返回的是会话内容，不让浏览器缓存到磁盘
+    if (path.startsWith('/api/')) res.setHeader('cache-control', 'no-store');
     if (!isAllowedHost(req.headers.host)) return json(res, 403, { error: '只允许从本机访问' });
     if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers[WRITE_HEADER] !== '1') {
       return json(res, 403, { error: '缺少请求头 x-yuchao' });
