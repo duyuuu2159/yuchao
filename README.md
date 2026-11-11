@@ -1,18 +1,58 @@
 # 鱼巢 AgentNest
 
-把 Claude Code、Codex、WorkBuddy、DeepSeek Harness 等多个 AI agent 的本地会话管在一起：一个搜索框搜遍所有 agent 的历史。
+[![CI](https://github.com/duyuuu2159/yuchao/actions/workflows/ci.yml/badge.svg)](https://github.com/duyuuu2159/yuchao/actions/workflows/ci.yml)
+![测试覆盖率](https://img.shields.io/badge/%E8%A6%86%E7%9B%96%E7%8E%87-95%25-brightgreen)
+![Node](https://img.shields.io/badge/node-%E2%89%A524-339933)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-- **本地优先**：只读取本机的会话文件，不修改、不上传
-- **中文全文搜索**：基于 SQLite FTS5 trigram，不需要分词词典
-- **增量索引**：只重新解析有变化的文件，日常更新只要几秒
-- **安全扫描**：找出会话里泄露的密码、API key、私钥，同一个秘密归为一组；报告和界面默认打码，不显示原文
-- **Agent 眼中的你**：展示 Claude、WorkBuddy 自己写下的关于你的记忆；本地统计你和 AI 的相处方式；用大模型从你写的话里整理画像，每条结论都附出处，程序会剔除模型编造的引用
-- **配置管家**：给各个 agent 的配置文件记版本，把散落的旧备份整理成一条时间线，检查哪些版本已损坏，安全回滚
-- **服务器面板**：服务状态、线上版本和发布记录、磁盘、最近的异常退出和错误日志；用一把只能运行只读脚本的专用密钥连接，鱼巢没有能力改动服务器
-- **单文件程序**：打包成一个 `yuchao.exe`，双击即用，不需要安装 Node.js
-- **接力**：额度用完或上下文太长时，把一个会话整理成交接说明（目标、改过的文件、命令、报错、最后的进度），粘贴给另一个 agent 接着做；本地生成，不花钱，默认打码
-- **界面**：和个人网站 duyuuu.com 同一套视觉（毛玻璃、天空渐变、杂志式版式）；概览页一眼看清全部状态；会话正文渲染 Markdown；明暗模式；不依赖任何 UI 库
-- **认得清来源**：区分你亲手写的话、agent 的回复、工具调用和客户端自动注入的上下文；子 agent 会话挂在父会话下面；分叉会话复制的历史在搜索结果里只出现一次
+把 Claude Code、Codex、WorkBuddy、DeepSeek Harness 等多个 AI agent 的本地会话管在一起：一个搜索框搜遍所有 agent 的历史，顺便找出你不小心贴进对话里的密码。
+
+![概览页](docs/images/overview.png)
+
+**先试试**——用一套演示数据启动，不读取你电脑上的任何会话：
+
+```bash
+npm install
+```
+
+```bash
+npm run demo
+```
+
+然后打开 <http://127.0.0.1:4318>。
+
+## 几个数字
+
+| | |
+|---|---|
+| 搜索延迟 | 作者本机 6.5 万条真实消息：**P50 15 毫秒，P95 17 毫秒**（优化前 P95 264 毫秒，[过程](docs/perf.md)） |
+| 首次建索引 | 10 万条消息约 5 秒，约 2 万条/秒；之后只重新解析有变化的文件 |
+| 网页体积 | JS 经 gzip 84 KB，不用任何 UI 库、图标库、Markdown 库；CI 里有 100 KB 的预算 |
+| 测试 | 124 个，行覆盖率 95%；端到端测试用临时家目录真实启动命令行，画像生成对着假的大模型接口跑完整流程 |
+| 运行时依赖 | 5 个 |
+
+## 能做什么
+
+- **一个搜索框搜所有 agent**：中文全文搜索（SQLite FTS5 trigram，不需要分词词典）；增量索引；子 agent 挂在父会话下；分叉会话复制的历史只出现一次
+- **安全扫描**：找出会话里泄露的密码、API key、私钥、服务器凭据；同一个秘密归为一组；界面和报告默认打码
+- **接力**：额度用完或上下文太长时，把一个会话整理成交接说明（目标、改过的文件、命令、报错、最后进度），粘贴给另一个 agent 接着做；本地生成，不花钱
+- **Agent 眼中的你**：各 agent 写下的关于你的记忆；本地统计你和 AI 的相处方式；用大模型从你写的话里整理画像，每条结论都附出处，程序会剔除模型编造的引用
+- **配置管家**：给各个 agent 的配置文件记版本，把散落的旧备份整理成一条时间线，安全回滚
+- **服务器面板**：服务状态、线上版本、磁盘、最近的异常；用一把只能运行只读脚本的专用密钥连接
+- **单文件程序**：`yuchao.exe` 双击即用，不需要安装 Node.js
+
+| | |
+|---|---|
+| ![会话](docs/images/session.png) | ![安全扫描（深色）](docs/images/scan-dark.png) |
+| ![画像](docs/images/profile.png) | ![概览（深色）](docs/images/overview-dark.png) |
+
+## 本地优先，默认只读
+
+- 只读取本机的会话文件，从不修改
+- 唯一会把数据发出本机的功能是生成画像：只发你亲手写的话（已打码），发送前可以预览，必须加 `--yes`
+- 本地网页只监听 127.0.0.1，挡住 DNS 重绑定和跨站请求，加了内容安全策略；回滚、生成画像这类有后果的操作只能在命令行执行
+
+完整的威胁模型见 [SECURITY.md](SECURITY.md)。
 
 ## 支持的 agent
 
@@ -81,6 +121,7 @@ node src/cli/main.ts serve
 | `server add <名字> <用户名@主机>` | 添加服务器，`--url` 填公网地址用于检查 HTTPS |
 | `server setup` | 生成只读专用密钥，打印服务器上需要做的配置 |
 | `serve` | 启动本地网页界面，只监听 127.0.0.1，只接受本机 Host，写操作需要自定义请求头 |
+| `--version` | 显示版本号 |
 
 索引存放在 `~/.yuchao/index.db`，可用环境变量 `YUCHAO_DB` 修改。
 
@@ -116,12 +157,10 @@ restrict,command="/usr/bin/python3 /usr/local/lib/yuchao/status.py" ssh-ed25519 
 ## 开发
 
 ```bash
-npm test
+npm run check
 ```
 
-```bash
-npm run typecheck
-```
+一条命令跑完类型检查、代码规范（Biome）和全部测试（含覆盖率下限），和 CI 一样。其它命令和接入新 agent 的步骤见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 前端开发时先运行 `node src/cli/main.ts serve`，再运行 `npm run web:dev`，Vite 会把 `/api` 转发给本地服务。
 
@@ -143,15 +182,23 @@ src/core/      解析器、索引、搜索、安全扫描（不依赖界面）
 src/cli/       命令行入口
 src/server/    本地 HTTP API 和静态文件服务
 server/        装在服务器上的只读状态脚本
-scripts/       打包成单文件 exe 的脚本
+scripts/       打包 exe、性能基准（bench.ts）、演示数据（demo.ts）、包体积预算、发布说明
 web/           React 界面（markdown.ts 是自己写的小解析器，ui.tsx 是公共组件）
-test/          测试；fixtures/ 里是手写的假会话，不含任何真实数据
-docs/          计划和开发日志
+test/          单元测试和端到端测试（*.e2e.test.ts）；fixtures/ 里是手写的假会话，不含任何真实数据
+docs/          架构、性能、计划和开发日志
 ```
 
-## 路线图
+## 文档
 
-见 [docs/PLAN.md](docs/PLAN.md)。已完成 M1（统一会话库）、M2（安全扫描）、M3（Agent 眼中的你）和 M4（配置管家），开发过程见 [docs/devlog.md](docs/devlog.md)。
+| | |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | 分层、统一模型、关键设计和取舍 |
+| [docs/perf.md](docs/perf.md) | 性能怎么测的、慢在哪里、改了什么，包括没有用的尝试 |
+| [SECURITY.md](SECURITY.md) | 威胁模型：保护什么、防谁、怎么防、不防什么 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 开发命令、接入新 agent 的步骤 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本记录 |
+| [docs/devlog.md](docs/devlog.md) | 开发日志：每个阶段的决定和踩过的坑 |
+| [docs/PLAN.md](docs/PLAN.md) | 路线图（M1–M6 已完成） |
 
 ## 许可
 
