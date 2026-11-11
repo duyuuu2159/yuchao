@@ -1,8 +1,8 @@
 import * as z from 'zod';
-import type { Store } from '../store.ts';
 import { agentLabel } from '../agents.ts';
+import type { Store } from '../store.ts';
 import type { AgentKind } from '../types.ts';
-import { sessionEvidence, type ActivityStats, type SessionEvidence } from './evidence.ts';
+import { type ActivityStats, type SessionEvidence, sessionEvidence } from './evidence.ts';
 import type { LlmClient, Usage } from './llm.ts';
 
 // 画像流程：

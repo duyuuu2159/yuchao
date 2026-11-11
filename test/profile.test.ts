@@ -1,23 +1,23 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, copyFileSync, cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Store } from '../src/core/store.ts';
-import { readClaudeMemories, parseFrontmatter } from '../src/core/memories.ts';
-import { activityStats, sessionEvidence } from '../src/core/profile/evidence.ts';
+import { test } from 'node:test';
+import { parseFrontmatter, readClaudeMemories } from '../src/core/memories.ts';
 import {
   buildProfile,
-  ProfileBuildError,
   diffProfiles,
   exportMarkdown,
   latestProfile,
-  profileHistory,
-  ProfileSchema,
-  SessionNoteSchema,
+  ProfileBuildError,
   type ProfileDoc,
+  ProfileSchema,
+  profileHistory,
+  SessionNoteSchema,
 } from '../src/core/profile/build.ts';
-import { pickModel, type JsonRequest, type LlmClient } from '../src/core/profile/llm.ts';
+import { activityStats, sessionEvidence } from '../src/core/profile/evidence.ts';
+import { type JsonRequest, type LlmClient, pickModel } from '../src/core/profile/llm.ts';
+import { Store } from '../src/core/store.ts';
 
 const FIX = join(import.meta.dirname, 'fixtures');
 const PW = 'Tq8vLm2Xz9';

@@ -1,10 +1,10 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, copyFileSync, cpSync, mkdtempSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { makeSnippet, Store } from '../src/core/store.ts';
+import { test } from 'node:test';
 import type { SourceDirs } from '../src/core/sources.ts';
+import { makeSnippet, Store } from '../src/core/store.ts';
 
 const FIX = join(import.meta.dirname, 'fixtures');
 

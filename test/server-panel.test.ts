@@ -1,8 +1,8 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 import {
   assess,
   authorizedKeysLine,
@@ -11,10 +11,10 @@ import {
   ensureKey,
   loadServers,
   parseTarget,
+  type RemoteStatus,
   recordDeploy,
   saveServers,
   sshArgs,
-  type RemoteStatus,
 } from '../src/core/server.ts';
 import { Store } from '../src/core/store.ts';
 

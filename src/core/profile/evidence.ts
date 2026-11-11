@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
+import { AGENT_KINDS, agentLabel } from '../agents.ts';
 import { IPV4, redact } from '../scan.ts';
 import type { Store } from '../store.ts';
-import { AGENT_KINDS, agentLabel } from '../agents.ts';
 import type { AgentKind } from '../types.ts';
 
 // 画像的原材料：本地统计（不经过大模型）和每个会话的证据摘要（会发给大模型）。

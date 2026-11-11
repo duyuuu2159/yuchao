@@ -1,17 +1,17 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 import { zstdCompressSync } from 'node:zlib';
 import { AGENTS } from '../src/core/agents.ts';
+import { defaultTracked } from '../src/core/configs.ts';
 import { zstdFrames } from '../src/core/lines.ts';
 import { readMemories, readWorkBuddyMemories } from '../src/core/memories.ts';
 import { parseDshFile } from '../src/core/parsers/dsh.ts';
 import { extractUserQuery, parseWorkBuddyFile } from '../src/core/parsers/workbuddy.ts';
 import { discover } from '../src/core/sources.ts';
 import { Store } from '../src/core/store.ts';
-import { defaultTracked } from '../src/core/configs.ts';
 
 const FIX = join(import.meta.dirname, 'fixtures');
 const WB = join(FIX, 'workbuddy');

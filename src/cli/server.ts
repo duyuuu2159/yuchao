@@ -6,11 +6,11 @@ import {
   keyPath,
   loadServers,
   parseTarget,
-  recordDeploy,
   REMOTE_SCRIPT,
-  saveServers,
+  recordDeploy,
   type ServerConfig,
   type ServerReport,
+  saveServers,
 } from '../core/server.ts';
 import type { Store } from '../core/store.ts';
 import { bold, color, day, dim, fail } from './style.ts';

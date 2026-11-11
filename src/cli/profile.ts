@@ -2,29 +2,29 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { AGENT_KINDS, agentLabel, isAgentKind } from '../core/agents.ts';
 import { readMemories } from '../core/memories.ts';
-import { activityStats } from '../core/profile/evidence.ts';
 import {
   buildProfile,
-  ProfileBuildError,
   diffProfiles,
   exportMarkdown,
   latestProfile,
+  ProfileBuildError,
   previewPayload,
   profileHistory,
   type Scope,
 } from '../core/profile/build.ts';
+import { activityStats } from '../core/profile/evidence.ts';
+import type { LlmClient } from '../core/profile/llm.ts';
 import {
   AnthropicLlm,
+  type AnthropicOptions,
   claudeCodeSettingsPath,
   DEFAULT_MODEL,
   pickModel,
   readClaudeCodeConnection,
-  type AnthropicOptions,
 } from '../core/profile/llm.ts';
+import { OpenAiCompatibleLlm } from '../core/profile/openai.ts';
 import { defaultSourceDirs } from '../core/sources.ts';
 import { defaultDbPath, type Store } from '../core/store.ts';
-import { OpenAiCompatibleLlm } from '../core/profile/openai.ts';
-import type { LlmClient } from '../core/profile/llm.ts';
 import { askSecret } from './secret.ts';
 import { bold, color, day, dim, fail, tag } from './style.ts';
 

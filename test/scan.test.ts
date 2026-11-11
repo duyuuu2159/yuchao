@@ -1,5 +1,5 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import { entropy, fingerprint, looksLikeSecret, mask, redact, scanText } from '../src/core/scan.ts';
 
 // 假密钥在运行时拼接，避免源码里出现「长得像真密钥」的字符串被 GitHub 推送保护拦截

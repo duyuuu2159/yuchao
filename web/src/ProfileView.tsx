@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
+  type ActivityStats,
   AGENT_LABEL,
   AGENTS,
-  profileApi,
-  type ActivityStats,
   type AgentMemory,
   type ProfileDiff,
   type ProfileOverview,
   type ProfileVersion,
+  profileApi,
   type Scope,
 } from './api.ts';
 import { when } from './format.ts';

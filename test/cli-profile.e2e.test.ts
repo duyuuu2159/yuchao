@@ -3,7 +3,7 @@
 //   1. 模型编造的引用（不存在的消息序号、会话编号）会被程序剔除，不会出现在画像里
 //   2. 发给模型的只有用户自己写的话：没有 agent 的回复，密钥已打码
 //   3. key 只出现在请求头里
-import { test } from 'node:test';
+
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -11,6 +11,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 
 const ROOT = join(import.meta.dirname, '..');
 const FIX = join(import.meta.dirname, 'fixtures');

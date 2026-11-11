@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 import { readJsonl } from '../lines.ts';
-import { clip, type Role, type Session } from '../types.ts';
 import { isClaudeContext, titleFrom, toText } from '../text.ts';
+import { clip, type Role, type Session } from '../types.ts';
 
 /**
  * 解析 Claude Code 的会话文件：

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type AuditResult, type Finding } from './api.ts';
+import { type AuditResult, api, type Finding } from './api.ts';
 import { when } from './format.ts';
 import { AgentBadge, Empty, ErrorPage, LoadingPage, PageHeader } from './ui.tsx';
 

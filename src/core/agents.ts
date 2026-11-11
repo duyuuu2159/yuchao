@@ -1,7 +1,7 @@
 import { type Dirent, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadCodexTitles, parseCodexFile } from './parsers/codex.ts';
 import { parseClaudeFile } from './parsers/claude.ts';
+import { loadCodexTitles, parseCodexFile } from './parsers/codex.ts';
 import { parseDshFile } from './parsers/dsh.ts';
 import { parseWorkBuddyFile } from './parsers/workbuddy.ts';
 import type { AgentKind, Session } from './types.ts';

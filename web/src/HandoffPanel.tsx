@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AGENT_LABEL, AGENTS, handoffApi, type Agent, type Handoff } from './api.ts';
+import { AGENT_LABEL, AGENTS, type Agent, type Handoff, handoffApi } from './api.ts';
 import { Markdown } from './Markdown.tsx';
 import { AgentBadge, Icon, Skeleton } from './ui.tsx';
 

@@ -1,4 +1,4 @@
-import { ConfigManager, hasNul, redactConfig, type ConfigVersion, type TrackedFile } from '../core/configs.ts';
+import { ConfigManager, type ConfigVersion, hasNul, redactConfig, type TrackedFile } from '../core/configs.ts';
 import { diffText } from '../core/diff.ts';
 import { defaultSourceDirs } from '../core/sources.ts';
 import type { Store } from '../core/store.ts';

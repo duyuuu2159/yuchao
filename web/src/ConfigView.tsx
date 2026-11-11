@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { configApi, type ConfigDiff, type ConfigStatus, type ConfigVersion } from './api.ts';
+import { type ConfigDiff, type ConfigStatus, type ConfigVersion, configApi } from './api.ts';
 import { when } from './format.ts';
 import { Cmd, ErrorPage, LoadingPage, PageHeader, Skeleton } from './ui.tsx';
 

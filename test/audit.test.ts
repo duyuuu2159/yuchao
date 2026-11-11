@@ -1,8 +1,8 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, copyFileSync, cpSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 import { audit, ignoreFinding, unignoreFinding } from '../src/core/audit.ts';
 import { Store } from '../src/core/store.ts';
 

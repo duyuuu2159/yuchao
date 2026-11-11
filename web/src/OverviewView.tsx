@@ -1,21 +1,21 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { HandoffPanel } from './HandoffPanel.tsx';
+import { type ReactNode, useEffect, useState } from 'react';
 import {
   AGENT_LABEL,
   AGENTS,
+  type AuditResult,
   api,
+  type ConfigStatus,
   configApi,
   handoffApi,
-  serverApi,
-  statsApi,
-  type AuditResult,
-  type ConfigStatus,
   type ServerReport,
   type SessionRow,
   type Stats,
+  serverApi,
+  statsApi,
 } from './api.ts';
 import { when } from './format.ts';
-import { AgentBadge, Cmd, Icon, Skeleton, Status, type IconName, type View } from './ui.tsx';
+import { HandoffPanel } from './HandoffPanel.tsx';
+import { AgentBadge, Cmd, Icon, type IconName, Skeleton, Status, type View } from './ui.tsx';
 
 /** 加载一份数据：undefined 表示还在加载，Error 表示失败 */
 function useLoad<T>(load: () => Promise<T>, key: number): T | Error | undefined {

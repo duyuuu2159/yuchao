@@ -2,8 +2,8 @@ import { mkdirSync, type Stats, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { redact } from './scan.ts';
 import { AGENTS, adapter } from './agents.ts';
+import { redact } from './scan.ts';
 import { discover, type SourceDirs } from './sources.ts';
 import type { AgentKind, Role, Session } from './types.ts';
 

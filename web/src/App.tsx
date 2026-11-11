@@ -6,7 +6,7 @@ import { ProfileView } from './ProfileView.tsx';
 import { ScanView } from './ScanView.tsx';
 import { ServerView } from './ServerView.tsx';
 import { SessionsView } from './SessionsView.tsx';
-import { Icon, useRoute, useTheme, type IconName, type ThemeChoice, type View } from './ui.tsx';
+import { Icon, type IconName, type ThemeChoice, useRoute, useTheme, type View } from './ui.tsx';
 
 const NAV: { view: View; label: string; icon: IconName }[] = [
   { view: 'overview', label: '概览', icon: 'home' },

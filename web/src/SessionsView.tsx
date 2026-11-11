@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
-import { AGENT_LABEL, AGENTS, api, type Agent, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
+import { type Ref, useEffect, useMemo, useRef, useState } from 'react';
+import { AGENT_LABEL, AGENTS, type Agent, api, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
 import { when } from './format.ts';
-import { highlight, Markdown } from './Markdown.tsx';
 import { HandoffPanel } from './HandoffPanel.tsx';
+import { highlight, Markdown } from './Markdown.tsx';
 import { AgentBadge, Empty, Icon, Skeleton } from './ui.tsx';
 
 function useDebounced<T>(value: T, ms: number): T {

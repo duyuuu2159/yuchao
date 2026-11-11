@@ -1,6 +1,6 @@
 import { readJsonl } from '../lines.ts';
-import { clip, type Role, type Session } from '../types.ts';
 import { extractCodexRequest, isCodexContext, stripImageTags, titleFrom, toText } from '../text.ts';
+import { clip, type Role, type Session } from '../types.ts';
 
 /**
  * 解析 Codex 的会话文件：

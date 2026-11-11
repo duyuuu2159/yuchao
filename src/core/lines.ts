@@ -1,8 +1,8 @@
 import { createReadStream, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
+import type { Readable } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
 import { createZstdDecompress, zstdDecompressSync } from 'node:zlib';
-import type { Readable } from 'node:stream';
 
 /**
  * 逐行读取 JSONL：

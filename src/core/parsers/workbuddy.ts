@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 import { readJsonl } from '../lines.ts';
-import { clip, type Role, type Session } from '../types.ts';
 import { titleFrom, toText } from '../text.ts';
+import { clip, type Role, type Session } from '../types.ts';
 
 /**
  * 解析 WorkBuddy（腾讯 CodeBuddy 系的桌面 agent）的会话文件：

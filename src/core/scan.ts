@@ -128,7 +128,7 @@ export const RULES: Rule[] = [
     id: 'server_credential',
     name: '服务器登录凭据',
     severity: 'high',
-    pattern: new RegExp(String.raw`['"]\d{1,3}(?:\.\d{1,3}){3}['"]\s*,\s*['"][\w.-]{1,32}['"]\s*,\s*['"]([^'"\s]{6,64})['"]`, 'g'),
+    pattern: /['"]\d{1,3}(?:\.\d{1,3}){3}['"]\s*,\s*['"][\w.-]{1,32}['"]\s*,\s*['"]([^'"\s]{6,64})['"]/g,
     accept: looksLikeSecret,
   },
   {

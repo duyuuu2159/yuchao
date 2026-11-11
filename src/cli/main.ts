@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 import { isSea } from 'node:sea';
 import { parseArgs } from 'node:util';
+import pkg from '../../package.json' with { type: 'json' };
 import { AGENT_KINDS, isAgentKind } from '../core/agents.ts';
-import { defaultSourceDirs } from '../core/sources.ts';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
-import { defaultDbPath, Store, type SearchOptions } from '../core/store.ts';
-import type { AgentKind, Role } from '../core/types.ts';
 import { ConfigManager } from '../core/configs.ts';
+import { defaultSourceDirs } from '../core/sources.ts';
+import { defaultDbPath, type SearchOptions, Store } from '../core/store.ts';
+import type { AgentKind, Role } from '../core/types.ts';
 import { runConfig } from './config.ts';
 import { runMemories, runProfile } from './profile.ts';
 import { bold, color, day, dim, fail, tag } from './style.ts';
-import pkg from '../../package.json' with { type: 'json' };
 
 const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在一起
 

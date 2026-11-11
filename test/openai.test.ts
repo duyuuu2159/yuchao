@@ -1,7 +1,7 @@
-import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { after, test } from 'node:test';
 import * as z from 'zod';
 import { OpenAiCompatibleLlm } from '../src/core/profile/openai.ts';
 

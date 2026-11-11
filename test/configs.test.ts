@@ -1,8 +1,8 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 import { ConfigManager, findBackups, redactConfig, validate } from '../src/core/configs.ts';
 import { diffText } from '../src/core/diff.ts';
 import { Store } from '../src/core/store.ts';

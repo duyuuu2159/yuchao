@@ -1,5 +1,5 @@
-import { memo, useMemo, type ReactNode } from 'react';
-import { parseMarkdown, type Inline } from './markdown.ts';
+import { memo, type ReactNode, useMemo } from 'react';
+import { type Inline, parseMarkdown } from './markdown.ts';
 import { CopyButton } from './ui.tsx';
 
 /** 把命中的关键词包上 <mark> */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { serverApi, type ServerConfig, type ServerReport } from './api.ts';
+import { type ServerConfig, type ServerReport, serverApi } from './api.ts';
 import { when } from './format.ts';
 import { Cmd, Empty, ErrorPage, LoadingPage, PageHeader, Skeleton } from './ui.tsx';
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
 import { AGENT_LABEL, type Agent } from './api.ts';
 
 // 公共组件和小工具：图标、agent 标签、页头、命令、骨架占位、地址路由、明暗模式。

@@ -1,11 +1,12 @@
 // 端到端测试：真正启动命令行程序，用临时目录冒充用户的家目录，从索引到搜索、扫描、接力跑一遍。
 // 其它测试直接调用函数；这里检查的是「用户敲下命令后看到的东西」，包括参数解析、退出码和输出。
-import { test } from 'node:test';
+
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 import pkg from '../package.json' with { type: 'json' };
 
 const ROOT = join(import.meta.dirname, '..');

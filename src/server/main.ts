@@ -1,19 +1,19 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
+import { AGENTS, isAgentKind } from '../core/agents.ts';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { ConfigManager, hasNul, redactConfig } from '../core/configs.ts';
 import { diffText } from '../core/diff.ts';
+import { buildHandoff, latestWorkSession } from '../core/handoff.ts';
 import { readMemories } from '../core/memories.ts';
-import { AGENTS, isAgentKind } from '../core/agents.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
-import { buildHandoff, latestWorkSession } from '../core/handoff.ts';
 import { checkServer, deployHistory, loadServers, recordDeploy, type ServerConfig, type ServerReport } from '../core/server.ts';
 import { defaultSourceDirs, type SourceDirs } from '../core/sources.ts';
-import { Store, type SearchOptions } from '../core/store.ts';
+import { type SearchOptions, Store } from '../core/store.ts';
 import type { AgentKind, Role } from '../core/types.ts';
 
 const MIME: Record<string, string> = {
