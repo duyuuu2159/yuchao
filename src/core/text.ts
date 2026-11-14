@@ -20,6 +20,8 @@ const CODEX_CONTEXT_PREFIXES = [
   '<user_instructions>',
   '<in-app-browser-context',
   '<permissions instructions>',
+  // 定时任务（automation）每次触发时注入的心跳，不是用户写的
+  '<heartbeat>',
 ];
 
 function startsWithAny(text: string, prefixes: string[]): boolean {

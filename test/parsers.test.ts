@@ -111,3 +111,9 @@ test('Claude：工作流里的子 agent（subagents 下面还有一层目录）�
     '工作流的任务说明不是用户写的',
   );
 });
+
+test('Codex 定时任务注入的 <heartbeat> 是上下文，不是用户写的话', async () => {
+  const { isCodexContext } = await import('../src/core/text.ts');
+  assert.equal(isCodexContext('<heartbeat>\n<automation_id>automation-1</automation_id>\n</heartbeat>'), true);
+  assert.equal(isCodexContext('帮我看看 heartbeat 接口'), false);
+});
