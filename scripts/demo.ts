@@ -46,6 +46,8 @@ interface Tool {
   name: string;
   input: Record<string, unknown>;
   output: string;
+  /** 执行失败：按各家 agent 自己的写法记下来（is_error、Exit code、exit code、isError） */
+  failed?: boolean;
 }
 interface Turn {
   user: string;
@@ -59,7 +61,17 @@ interface Story {
   cwd: string;
   start: number;
   turns: Turn[];
+  /** 不写就用这个 agent 的默认模型 */
+  model?: string;
 }
+
+const DEFAULT_MODEL = { claude: 'claude-opus-5-5', codex: 'gpt-6-astra', workbuddy: 'glm-5.2', dsh: 'deepseek-v4.1-flash' };
+
+/** 每次回复的用量：按回复长度和第几轮粗略生成，只为演示「花了多少」长什么样 */
+const fakeUsage = (turn: number, reply: string) => {
+  const input = 42_000 + turn * 18_000;
+  return { input, cacheRead: Math.round(input * 0.85), output: 1_800 + reply.length * 40 };
+};
 
 const bash = (command: string, output: string): Tool => ({ name: 'Bash', input: { command }, output });
 const edit = (file_path: string, old_string: string, new_string: string): Tool => ({
@@ -68,6 +80,7 @@ const edit = (file_path: string, old_string: string, new_string: string): Tool =
   output: `The file ${file_path} has been updated.`,
 });
 const read = (file_path: string, output: string): Tool => ({ name: 'Read', input: { file_path }, output });
+const failed = (t: Tool): Tool => ({ ...t, failed: true });
 
 const BLOG = 'C:\\code\\blog';
 const LEDGER = 'C:\\code\\ledger-miniapp';
@@ -95,7 +108,11 @@ const STORIES: Story[] = [
         user: '内存不够？服务器是 2G 的',
         reply:
           '对，进程在构建或启动时内存溢出，被 systemd 反复重启，所以 nginx 一直连不上。两个办法：\n\n1. 在本地构建好再上传，服务器只负责运行\n2. 限制 Node 的堆大小并加 swap\n\n```bash\nsudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile\nsudo mkswap /swapfile && sudo swapon /swapfile\n```\n\n我建议先做第 1 条，服务器上不再跑 `next build`。',
-        tools: [edit(`${BLOG}\\deploy.sh`, 'npm run build', 'rsync -az .next/ server:/opt/blog/.next/')],
+        tools: [
+          failed(bash('ssh server "cd /opt/blog && npm run build"', 'FATAL ERROR: Reached heap limit Allocation failed')),
+          edit(`${BLOG}\\deploy.sh`, 'npm run build', 'rsync -az .next/ server:/opt/blog/.next/'),
+          bash('./deploy.sh', 'deployed in 41s'),
+        ],
       },
       {
         user: '改完了，现在能打开了，但是首页图片很慢',
@@ -143,6 +160,7 @@ const STORIES: Story[] = [
           bash('npm run build', 'Generated search index: 52 posts, 38 KB'),
         ],
       },
+      { user: '请再试一次', reply: '刚才的请求超时了，重新生成了搜索框组件。' },
       { user: '继续', reply: '搜索框加好了，支持键盘上下选择，回车打开文章。' },
     ],
   },
@@ -169,6 +187,7 @@ const STORIES: Story[] = [
   {
     agent: 'workbuddy',
     id: 'demo-ledger-chart',
+    model: 'hy4-free',
     title: '记账小程序：月度统计图',
     cwd: LEDGER,
     start: at(6, 19, 0),
@@ -178,7 +197,11 @@ const STORIES: Story[] = [
         reply: '小程序里用 canvas 自己画就行，数据量很小，不需要引入图表库。分类超过 6 个的合并成「其他」，颜色才分得清。',
         tools: [edit(`${LEDGER}\\pages\\index\\chart.js`, '', 'function drawDonut(ctx, parts) { /* ... */ }')],
       },
-      { user: '颜色能不能跟主题色一致', reply: '改成从主题色派生的一组颜色了，深色模式下也单独调过亮度。' },
+      {
+        user: '还是不行，颜色跟主题色对不上，深色模式下也看不清',
+        reply: '改成从主题色派生的一组颜色了，深色模式下也单独调过亮度。',
+        tools: [edit(`${LEDGER}/pages/index/chart.js`, 'const COLORS = [...]', 'const COLORS = themePalette(theme)')],
+      },
     ],
   },
   {
@@ -198,10 +221,49 @@ const STORIES: Story[] = [
       },
     ],
   },
+  {
+    agent: 'claude',
+    id: 'demo-ledger-login',
+    title: '记账小程序：微信登录一直失败',
+    cwd: LEDGER,
+    start: at(3, 21, 0),
+    turns: [
+      {
+        user: '小程序的微信登录一直返回 40029 invalid code，帮我看看',
+        reply: '40029 通常是 code 被用了两次或者过期了。我在登录接口里加了日志。',
+        tools: [bash('npm run dev:server', 'POST /api/login 500 errcode=40029')],
+      },
+      {
+        user: '还是不行，还是 40029',
+        reply: '日志显示 code 只用了一次。可能是 appid 和 secret 不是同一个小程序的，需要去后台确认。',
+        tools: [failed(bash('curl -s localhost:3000/api/login -d code=test', '{"errcode":40029,"errmsg":"invalid code"}'))],
+      },
+    ],
+  },
+  {
+    agent: 'codex',
+    id: 'demo-ledger-login-2',
+    title: '接力：微信登录 40029',
+    cwd: LEDGER,
+    start: at(3, 22, 30),
+    turns: [
+      {
+        user: '# 接力：记账小程序：微信登录一直失败\n\n我之前在 Claude Code 里做这件事，现在想换你（Codex）接着做。下面是鱼巢从会话记录里自动整理的交接信息，密码和密钥已经打码。\n\n## 最初的目标\n> 小程序的微信登录一直返回 40029 invalid code',
+        reply:
+          '我先复述一下：登录接口拿 code 换 session 时一直 40029，上一位怀疑是 appid 不匹配。我检查了配置，发现开发环境读的是另一个小程序的 appid。',
+        tools: [
+          edit(`${LEDGER}\\server\\.env.example`, 'WX_APPID=', 'WX_APPID=  # 和 project.config.json 里的 appid 保持一致'),
+          bash('npm run test -- login', 'PASS server/login.test.ts (4 tests)'),
+        ],
+      },
+      { user: '好了，可以登录了', reply: '顺手加了一个启动时的检查：两边的 appid 不一致会直接报错提醒。' },
+    ],
+  },
   // ---------------- 毕业设计：数据分析 ----------------
   {
     agent: 'dsh',
     id: 'demo-thesis-clean',
+    model: 'deepseek-flash',
     title: '毕业设计：问卷数据清洗',
     cwd: THESIS,
     start: at(3, 10, 0),
@@ -250,8 +312,8 @@ const STORIES: Story[] = [
     turns: [
       {
         user: '学校要求 GB/T 7714 的参考文献格式，用 LaTeX 怎么弄',
-        reply: '用 biblatex-gb7714-2015 宏包，编译链换成 xelatex + biber。',
-        tools: [bash('latexmk -xelatex thesis.tex', 'Output written on thesis.pdf (42 pages).')],
+        reply: '编译失败：缺少 gbt7714 宏包。需要先用 tlmgr 安装，或者把宏包文件放进项目目录。',
+        tools: [failed(bash('latexmk -xelatex thesis.tex', "! LaTeX Error: File `gbt7714.sty' not found."))],
       },
     ],
   },
@@ -277,6 +339,7 @@ const STORIES: Story[] = [
   {
     agent: 'claude',
     id: 'demo-cli-publish',
+    model: 'claude-sonnet-5-5',
     title: 'notes-cli：发布到 npm',
     cwd: CLI,
     start: at(7, 21, 30),
@@ -347,7 +410,8 @@ function writeClaude(s: Story) {
   let n = 0;
   const base = () => ({ uuid: `${s.id}-${n++}`, timestamp: iso(clock.next()), sessionId: s.id, cwd: s.cwd });
   lines.push({ type: 'custom-title', customTitle: s.title, sessionId: s.id });
-  for (const turn of s.turns) {
+  const model = s.model ?? DEFAULT_MODEL.claude;
+  for (const [k, turn] of s.turns.entries()) {
     lines.push({ ...base(), type: 'user', message: { role: 'user', content: turn.user } });
     for (const [i, tool] of (turn.tools ?? []).entries()) {
       const id = `${s.id}-t${n}-${i}`;
@@ -359,10 +423,24 @@ function writeClaude(s: Story) {
       lines.push({
         ...base(),
         type: 'user',
-        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: tool.output }] },
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: id, content: tool.output, is_error: tool.failed === true }],
+        },
       });
     }
-    lines.push({ ...base(), type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: turn.reply }] } });
+    const u = fakeUsage(k, turn.reply);
+    lines.push({
+      ...base(),
+      type: 'assistant',
+      message: {
+        id: `${s.id}-m${k}`,
+        role: 'assistant',
+        model,
+        content: [{ type: 'text', text: turn.reply }],
+        usage: { input_tokens: u.input - u.cacheRead, cache_read_input_tokens: u.cacheRead, output_tokens: u.output },
+      },
+    });
   }
   write(join(HOME, '.claude', 'projects', project, `${s.id}.jsonl`), lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
 }
@@ -372,15 +450,24 @@ function writeCodex(s: Story) {
   const clock = ticker(s.start);
   const rec = (payload: object, type = 'response_item') => ({ timestamp: iso(clock.next()), type, payload });
   const lines: object[] = [rec({ id: s.id, cwd: s.cwd, originator: 'Codex Desktop' }, 'session_meta')];
+  lines.push(rec({ model: s.model ?? DEFAULT_MODEL.codex }, 'turn_context'));
+  const total = { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0 };
   for (const [k, turn] of s.turns.entries()) {
     lines.push(rec({ type: 'message', role: 'user', content: [{ type: 'input_text', text: turn.user }] }));
     for (const [i, tool] of (turn.tools ?? []).entries()) {
       const call_id = `c${k}-${i}`;
       const command = tool.name === 'Bash' ? ['bash', '-lc', String(tool.input.command)] : [tool.name, JSON.stringify(tool.input)];
       lines.push(rec({ type: 'function_call', name: 'shell', arguments: JSON.stringify({ command }), call_id }));
-      lines.push(rec({ type: 'function_call_output', call_id, output: tool.output }));
+      // Codex 把退出码写在输出的第一行
+      lines.push(rec({ type: 'function_call_output', call_id, output: `Process exited with code ${tool.failed ? 1 : 0}\n${tool.output}` }));
     }
     lines.push(rec({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: turn.reply }] }));
+    // 用量是累计值
+    const u = fakeUsage(k, turn.reply);
+    total.input_tokens += u.input;
+    total.cached_input_tokens += u.cacheRead;
+    total.output_tokens += u.output;
+    lines.push(rec({ type: 'token_count', info: { total_token_usage: { ...total } } }, 'event_msg'));
   }
   const d = new Date(s.start);
   const dir = join(
@@ -419,7 +506,7 @@ function writeWorkBuddy(s: Story) {
         callId,
         name: tool.name,
         status: 'completed',
-        output: { type: 'text', text: tool.output },
+        output: { type: 'text', text: tool.failed ? `${tool.output}\nCommand completed with exit code 1` : tool.output },
       });
     }
     lines.push({
@@ -428,6 +515,13 @@ function writeWorkBuddy(s: Story) {
       ...common(),
       status: 'completed',
       content: [{ type: 'output_text', text: turn.reply }],
+      providerData: (() => {
+        const u = fakeUsage(k, turn.reply);
+        return {
+          model: s.model ?? DEFAULT_MODEL.workbuddy,
+          usage: { requests: 1, inputTokens: u.input, outputTokens: u.output, inputTokensDetails: [{ cached_tokens: u.cacheRead }] },
+        };
+      })(),
     });
   }
   write(
@@ -440,13 +534,19 @@ function writeDsh(s: Story) {
   const clock = ticker(s.start);
   const ev = (type: string, data: object) => ({ type, time: clock.next(), data });
   const lines: object[] = [{ type: 'session', id: s.id, cwd: s.cwd, time: s.start }, ev('session/title', { title: s.title })];
-  for (const turn of s.turns) {
+  for (const [k, turn] of s.turns.entries()) {
     lines.push(ev('user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: turn.user }] }));
     for (const tool of turn.tools ?? []) {
       lines.push(ev('assistant/message', { message: { content: [{ type: 'tool-call', name: tool.name, arguments: tool.input }] } }));
-      lines.push(ev('tool/result', { message: { content: [{ type: 'text', text: tool.output }] } }));
+      lines.push(ev('tool/result', { isError: tool.failed === true, message: { content: [{ type: 'text', text: tool.output }] } }));
     }
-    lines.push(ev('assistant/message', { message: { content: [{ type: 'text', text: turn.reply }] } }));
+    const u = fakeUsage(k, turn.reply);
+    lines.push(
+      ev('assistant/message', {
+        usage: { inputTokens: u.input - u.cacheRead, outputTokens: u.output },
+        message: { source: { model: s.model ?? DEFAULT_MODEL.dsh }, content: [{ type: 'text', text: turn.reply }] },
+      }),
+    );
   }
   // 和真实的 DeepSeek Harness 一样：每一行单独压缩成一个 zstd 帧，首尾相接
   const frames = lines.map((l) => zstdCompressSync(Buffer.from(JSON.stringify(l) + '\n')));
