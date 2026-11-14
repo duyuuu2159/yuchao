@@ -214,3 +214,16 @@ test('摘要截取命中位置附近的文字', () => {
   const s = makeSnippet(text, ['关键字'], 10);
   assert.equal(s, '…' + 'x'.repeat(10) + '关键字' + 'y'.repeat(7) + '…');
 });
+
+test('统计里带上本机累计的 token 用量，子 agent 也算在内', async () => {
+  const { dirs, store } = setup();
+  await store.index(dirs);
+  const { usage } = store.stats();
+  // 样例：Claude 一次回复 1000 输入 / 50 输出，Codex 两次请求共 2500 / 100
+  assert.deepEqual({ ...usage.total }, { requests: 3, input: 3500, output: 150, cacheRead: 2500 });
+  assert.deepEqual(
+    usage.byAgent.map((r: { agent: string }) => r.agent),
+    ['codex', 'claude'],
+  );
+  assert.ok(usage.since);
+});

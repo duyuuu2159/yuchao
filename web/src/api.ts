@@ -257,6 +257,11 @@ export interface Stats {
   sessions: { agent: Agent; n: number }[];
   messages: { role: Role; n: number }[];
   range: { first: string | null; last: string | null };
+  usage: {
+    total: { requests: number; input: number; output: number; cacheRead: number };
+    byAgent: { agent: Agent; input: number; output: number }[];
+    since: string | null;
+  };
 }
 
 export const statsApi = {

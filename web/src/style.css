@@ -836,6 +836,99 @@ button.chip:hover {
   display: inline-block;
   padding-left: 1.1em;
 }
+/* 标题右边：本机累计消耗的 token */
+.hero-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
+  align-items: start;
+  gap: var(--s6);
+}
+.token-total {
+  min-width: 0;
+}
+.token-total .label {
+  display: block;
+  margin-bottom: var(--s1);
+}
+.token-big {
+  margin: 0 0 var(--s3);
+  line-height: 1;
+}
+.token-big b {
+  font-size: clamp(40px, 4.6vw, 58px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.token-big span {
+  margin-left: 6px;
+  font-size: var(--f-md);
+  font-weight: 600;
+  color: var(--muted);
+}
+.token-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--sunken);
+}
+.token-bar span {
+  min-width: 3px;
+}
+.a-claude {
+  background: var(--claude);
+}
+.a-codex {
+  background: var(--codex);
+}
+.a-workbuddy {
+  background: var(--workbuddy);
+}
+.a-dsh {
+  background: var(--dsh);
+}
+.token-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--s3);
+  margin: var(--s2) 0 var(--s2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--f-xs);
+  color: var(--muted);
+}
+.token-legend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.token-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.token-legend b {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.token-total .meta {
+  font-size: var(--f-xs);
+  line-height: 1.6;
+}
+@media (max-width: 900px) {
+  .hero-top {
+    grid-template-columns: 1fr;
+    gap: var(--s4);
+  }
+}
 .hero-cols {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr;

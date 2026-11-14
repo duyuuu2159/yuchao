@@ -53,12 +53,15 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
     <div className="page overview">
       <Masthead stats={stats} />
       <section className="hero">
-        <h1>
-          把每个 agent，
-          <br />
-          <span className="grad">都收进一个巢</span>
-          <span className="dot">。</span>
-        </h1>
+        <div className="hero-top">
+          <h1>
+            把每个 agent，
+            <br />
+            <span className="grad">都收进一个巢</span>
+            <span className="dot">。</span>
+          </h1>
+          <TokenTotal stats={stats} />
+        </div>
         <div className="hero-cols">
           <div className="hero-col">
             <span className="label">卷首语</span>
@@ -127,6 +130,59 @@ const TOC: [View, string][] = [
 ];
 
 const WEEK = '日一二三四五六';
+
+/** 大数字写成「亿」「万」：36.5 亿比 3,650,000,000 好读 */
+export function bigNumber(n: number): { value: string; unit: string } {
+  if (n >= 1e8) return { value: (n / 1e8).toFixed(n >= 1e10 ? 0 : 1), unit: '亿' };
+  if (n >= 1e4) return { value: (n / 1e4).toFixed(n >= 1e6 ? 0 : 1), unit: '万' };
+  return { value: String(n), unit: '' };
+}
+
+/**
+ * 本机累计消耗的 token：一个大数字，下面一根按 agent 分段的横条。
+ * 段的颜色是各 agent 的识别色，名字和占比都写在下面，不靠颜色读。
+ */
+function TokenTotal({ stats }: { stats: Stats | Error | undefined }) {
+  if (!stats || stats instanceof Error) return <div className="token-total" aria-hidden="true" />;
+  const { total, byAgent, since } = stats.usage;
+  const all = total.input + total.output;
+  if (!all) return <div className="token-total" aria-hidden="true" />;
+  const big = bigNumber(all);
+  const share = (a: { input: number; output: number }) => ((a.input + a.output) / all) * 100;
+  const cache = total.input ? Math.round((total.cacheRead / total.input) * 100) : 0;
+  return (
+    <div className="token-total">
+      <span className="label">本机累计消耗</span>
+      <p className="token-big">
+        <b>{big.value}</b>
+        <span>{big.unit} token</span>
+      </p>
+      <div className="token-bar" role="img" aria-label={byAgent.map((a) => `${AGENT_LABEL[a.agent]} ${Math.round(share(a))}%`).join('，')}>
+        {byAgent.map((a) => (
+          <span
+            key={a.agent}
+            className={'a-' + a.agent}
+            style={{ flexGrow: a.input + a.output }}
+            title={`${AGENT_LABEL[a.agent]}：${bigNumber(a.input + a.output).value}${bigNumber(a.input + a.output).unit} token`}
+          />
+        ))}
+      </div>
+      <ul className="token-legend">
+        {byAgent.map((a) => (
+          <li key={a.agent}>
+            <i className={'a-' + a.agent} />
+            {AGENT_LABEL[a.agent]} <b>{share(a) < 1 ? '<1' : Math.round(share(a))}%</b>
+          </li>
+        ))}
+      </ul>
+      <p className="meta">
+        {n(total.requests)} 次请求，输出 {bigNumber(total.output).value} {bigNumber(total.output).unit}
+        <br />
+        输入里 {cache}% 命中缓存{since && `，从 ${new Date(since).getMonth() + 1} 月 ${new Date(since).getDate()} 日起`}
+      </p>
+    </div>
+  );
+}
 
 /** 刊头：和个人网站一样，把这一天当成杂志的一期，期数是记录开始以来的第几天 */
 function Masthead({ stats }: { stats: Stats | Error | undefined }) {

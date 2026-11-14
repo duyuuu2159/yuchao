@@ -440,6 +440,16 @@ export class Store {
       sessions: q('SELECT agent, COUNT(*) AS n FROM sessions GROUP BY agent'),
       messages: q('SELECT role, COUNT(*) AS n FROM messages GROUP BY role'),
       range: q('SELECT MIN(started_at) AS first, MAX(updated_at) AS last FROM sessions')[0],
+      // 本机累计的 token 用量（含子 agent）；input 包含命中缓存的部分，口径见 usage.ts
+      usage: {
+        total: q(
+          'SELECT COALESCE(SUM(requests), 0) AS requests, COALESCE(SUM(input), 0) AS input, COALESCE(SUM(output), 0) AS output, COALESCE(SUM(cache_read), 0) AS cacheRead FROM session_usage',
+        )[0],
+        byAgent: q(
+          'SELECT s.agent, SUM(u.input) AS input, SUM(u.output) AS output FROM session_usage u JOIN sessions s ON s.id = u.session_id GROUP BY s.agent ORDER BY SUM(u.input + u.output) DESC',
+        ),
+        since: q('SELECT MIN(s.started_at) AS since FROM session_usage u JOIN sessions s ON s.id = u.session_id')[0].since,
+      },
     };
   }
 }
