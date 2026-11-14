@@ -235,7 +235,10 @@ code {
 .server-log,
 .hero,
 .list,
-.reader {
+.reader,
+.score-table-wrap,
+.score-sessions,
+.score-rules {
   background: var(--glass);
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow);
@@ -2146,5 +2149,241 @@ button.version:hover {
   }
   .handoff {
     padding: var(--s4);
+  }
+}
+
+/* ───────── 成绩单 ───────── */
+
+/* 结果条：一根横条按比例分成三段。段与段之间留 2px 缝，颜色只做辅助，比例另有数字 */
+.outcome-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  min-width: 96px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--sunken);
+}
+.outcome-bar span {
+  display: block;
+  min-width: 3px;
+  height: 100%;
+}
+.seg-smooth {
+  background: var(--ok);
+}
+.seg-rework {
+  background: var(--warn);
+}
+.seg-unresolved {
+  background: var(--err);
+}
+.outcome-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--f-xs);
+  color: var(--muted);
+}
+.outcome-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.outcome-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.score-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-bottom: var(--s6);
+}
+.score-summary .stat {
+  min-width: 120px;
+}
+.stat b.ok {
+  color: var(--ok);
+}
+.score-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin: var(--s6) 0 var(--s3);
+}
+.score-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.score-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--r3);
+}
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--f-sm);
+}
+.score-table th,
+.score-table td {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+.score-table tbody tr:last-child th,
+.score-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.score-table thead th {
+  font-size: var(--f-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+.score-table tbody th {
+  font-weight: 600;
+}
+.score-table tbody th .meta {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: var(--s2);
+}
+.score-table code {
+  font-size: var(--f-sm);
+}
+.score-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.score-table .strong {
+  font-weight: 700;
+}
+.score-table .bar-col {
+  width: 30%;
+  min-width: 140px;
+}
+.score-table tr.few {
+  color: var(--muted);
+}
+.score-table tr.few .outcome-bar {
+  opacity: 0.55;
+}
+.few-tag {
+  margin-left: var(--s2);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sunken);
+  font-size: var(--f-xs);
+  font-weight: 400;
+  color: var(--muted);
+}
+.score-caveat {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-top: var(--s3);
+  line-height: 1.7;
+}
+
+.score-sessions {
+  margin: 0;
+  padding: var(--s2);
+  list-style: none;
+  border-radius: var(--r3);
+}
+.score-sessions button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-radius: var(--r2);
+  background: none;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.score-sessions button:hover {
+  background: var(--accent-soft);
+}
+.score-sessions .row1 {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+.score-sessions .row1 b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.score-sessions .row1 .meta {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+
+.score-rules {
+  margin-top: var(--s6);
+  padding: var(--s4) var(--s5);
+  border-radius: var(--r3);
+}
+.score-rules summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.score-rules dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s2) var(--s4);
+  margin: var(--s4) 0 0;
+  font-size: var(--f-sm);
+  line-height: 1.7;
+}
+.score-rules dt {
+  font-weight: 600;
+}
+.score-rules dd {
+  margin: 0;
+  color: var(--body);
+}
+
+/* 概览页卡片里的迷你版 */
+.score-mini {
+  width: 100%;
+  margin: var(--s2) 0 var(--s3);
+  border-collapse: collapse;
+  font-size: var(--f-sm);
+}
+.score-mini th {
+  width: 1%;
+  padding: 3px var(--s3) 3px 0;
+  text-align: left;
+  font-weight: 400;
+  white-space: nowrap;
+  color: var(--body);
+}
+.score-mini td:last-child {
+  width: 1%;
+  padding-left: var(--s2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 720px) {
+  .score-rules dl {
+    grid-template-columns: 1fr;
   }
 }

@@ -4,6 +4,7 @@ import { ConfigView } from './ConfigView.tsx';
 import { OverviewView } from './OverviewView.tsx';
 import { ProfileView } from './ProfileView.tsx';
 import { ScanView } from './ScanView.tsx';
+import { ScoreView } from './ScoreView.tsx';
 import { ServerView } from './ServerView.tsx';
 import { SessionsView } from './SessionsView.tsx';
 import { Icon, type IconName, type ThemeChoice, useRoute, useTheme, type View } from './ui.tsx';
@@ -11,6 +12,7 @@ import { Icon, type IconName, type ThemeChoice, useRoute, useTheme, type View } 
 const NAV: { view: View; label: string; icon: IconName }[] = [
   { view: 'overview', label: '概览', icon: 'home' },
   { view: 'sessions', label: '会话', icon: 'chat' },
+  { view: 'score', label: '成绩单', icon: 'chart' },
   { view: 'scan', label: '安全扫描', icon: 'shield' },
   { view: 'profile', label: '画像', icon: 'user' },
   { view: 'config', label: '配置', icon: 'sliders' },
@@ -139,6 +141,7 @@ export function App() {
         ) : (
           <main className="scroll">
             {route.view === 'overview' && <OverviewView reloadKey={reloadKey} go={go} />}
+            {route.view === 'score' && <ScoreView key={reloadKey} onOpen={open} />}
             {route.view === 'scan' && <ScanView key={reloadKey} onOpen={open} />}
             {route.view === 'profile' && <ProfileView key={reloadKey} onOpen={open} />}
             {route.view === 'config' && <ConfigView key={reloadKey} />}

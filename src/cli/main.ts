@@ -52,6 +52,7 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao config show <版本号>      查看某个版本的内容（已打码）
   yuchao config restore <版本号> --yes  回滚到某个版本，会先保存当前内容；损坏的版本需要 --force
   yuchao config track|untrack <路径>    增加或取消跟踪的配置文件
+  yuchao score [--days 30] [--all]  成绩单：每个 agent、每个模型把事办成了多少，花了多少 token（--json 输出 JSON）
   yuchao handoff <会话id> [--to codex]  接力：把会话整理成交接说明，粘贴给另一个 agent 接着做（本地生成，已打码）
   yuchao server [名字]             服务器面板：服务、版本、磁盘、最近的异常（只读，--json 输出 JSON）
   yuchao server add <名字> <用户名@主机[:端口]> [--url https://域名]  添加服务器
@@ -81,6 +82,7 @@ const { values, positionals } = parseArgs({
     provider: { type: 'string' },
     url: { type: 'string' },
     to: { type: 'string' },
+    days: { type: 'string' },
     yes: { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
@@ -204,6 +206,13 @@ async function run(store: Store) {
       case 'config':
         runConfig(store, rest, values);
         break;
+      case 'score': {
+        const { runScore } = await import('./score.ts');
+        const days = values.days ? Number(values.days) : undefined;
+        if (days !== undefined && !(days > 0)) fail('--days 要是正数，例如 --days 30');
+        runScore(store, { days, agent, json: values.json, all: values.all });
+        break;
+      }
       case 'handoff': {
         const { buildHandoff } = await import('../core/handoff.ts');
         if (values.to && !isAgentKind(values.to)) fail(`未知的 agent：${values.to}（可选 ${AGENT_KINDS.join('、')}）`);

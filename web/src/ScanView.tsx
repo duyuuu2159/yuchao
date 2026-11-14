@@ -58,7 +58,7 @@ export function ScanView({ onOpen }: { onOpen: (sessionId: string, seq: number |
   return (
     <div className="page scan">
       <PageHeader
-        kicker="02 · 安全"
+        kicker="03 · 安全"
         title="安全扫描"
         desc="找出会话里泄露的密码、API key 和私钥。所有内容都已打码，报告里不会出现原文；同一个秘密出现在多处时归为一条，依据是它的指纹（SHA-256 的前 16 位，无法反推出原文）。"
       />

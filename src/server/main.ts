@@ -11,6 +11,7 @@ import { readMemories } from '../core/memories.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
+import { buildScorecard } from '../core/scorecard.ts';
 import { checkServer, deployHistory, loadServers, recordDeploy, type ServerConfig, type ServerReport } from '../core/server.ts';
 import { defaultSourceDirs, type SourceDirs } from '../core/sources.ts';
 import { type SearchOptions, Store } from '../core/store.ts';
@@ -114,6 +115,11 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
       }
 
       // 接力：只读，本地生成交接说明
+      if (path === '/api/scorecard' && req.method === 'GET') {
+        const days = Number(url.searchParams.get('days'));
+        const sc = buildScorecard(store, { days: days > 0 ? days : undefined, agent: agentParam(url.searchParams.get('agent')) });
+        return json(res, 200, { ...sc, sessions: sc.sessions.map((s) => ({ ...s, title: safe(s.title) })) });
+      }
       if (path.startsWith('/api/handoff/') && req.method === 'GET') {
         const ref = decodeURIComponent(path.slice('/api/handoff/'.length));
         const h = buildHandoff(store, ref === 'latest' ? (latestWorkSession(store) ?? '') : ref, {

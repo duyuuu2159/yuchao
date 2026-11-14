@@ -283,3 +283,51 @@ export interface Handoff {
 export const handoffApi = {
   get: (id: string, to?: Agent, raw?: boolean) => get<Handoff>(`/api/handoff/${encodeURIComponent(id)}?${qs({ to, raw: flag(raw) })}`),
 };
+
+// ---------------- 成绩单 ----------------
+
+export type Outcome = 'smooth' | 'rework' | 'unresolved';
+
+export interface SessionScore {
+  id: string;
+  agent: Agent;
+  title: string | null;
+  startedAt: string | null;
+  model: string | null;
+  outcome: Outcome;
+  reasons: string[];
+  handedOffTo: string | null;
+  signals: { turns: number; toolCalls: number; errors: number; retries: number; reAsks: number; negatives: number };
+  input: number;
+  output: number;
+  cacheRead: number;
+}
+
+export interface ScoreRow {
+  key: string;
+  label: string;
+  agents: Agent[];
+  sessions: number;
+  smooth: number;
+  rework: number;
+  unresolved: number;
+  avgTurns: number;
+  retries: number;
+  failures: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  outputPerSmooth: number | null;
+}
+
+export interface Scorecard {
+  since: string | null;
+  sessions: SessionScore[];
+  byAgent: ScoreRow[];
+  byModel: ScoreRow[];
+  handoffs: number;
+}
+
+export const scoreApi = {
+  get: (days?: number, raw?: boolean) => get<Scorecard>(`/api/scorecard?${qs({ days: days ? String(days) : undefined, raw: flag(raw) })}`),
+};

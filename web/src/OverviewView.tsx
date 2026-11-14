@@ -1,20 +1,22 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import {
   AGENT_LABEL,
-  AGENTS,
   type AuditResult,
   api,
   type ConfigStatus,
   configApi,
   handoffApi,
+  type Scorecard,
   type ServerReport,
   type SessionRow,
   type Stats,
+  scoreApi,
   serverApi,
   statsApi,
 } from './api.ts';
 import { when } from './format.ts';
 import { HandoffPanel } from './HandoffPanel.tsx';
+import { OutcomeBar, OutcomeLegend } from './ScoreView.tsx';
 import { AgentBadge, Cmd, Icon, type IconName, Skeleton, Status, type View } from './ui.tsx';
 
 /** 加载一份数据：undefined 表示还在加载，Error 表示失败 */
@@ -42,6 +44,7 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
   const configs = useLoad(() => configApi.status(), reloadKey);
   const server = useLoad(async () => ((await serverApi.list()).length ? serverApi.status('') : null), reloadKey);
   const recent = useLoad(() => api.sessions(), reloadKey);
+  const score = useLoad(() => scoreApi.get(), reloadKey);
 
   const relay = useLoad(() => handoffApi.get('latest').catch(() => null), reloadKey);
   const [relayOpen, setRelayOpen] = useState(false);
@@ -106,7 +109,7 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
         <ScanCard scan={scan} go={go} />
         <ConfigCard configs={configs} go={go} />
         <ServerCard server={server} go={go} />
-        <AgentsCard stats={stats} go={go} />
+        <ScoreCard score={score} go={go} />
       </div>
       <SectionLabel no="02" name="最近" />
       <Recent sessions={recent} go={go} />
@@ -116,6 +119,7 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
 
 const TOC: [View, string][] = [
   ['sessions', '翻会话'],
+  ['score', '看成绩'],
   ['scan', '查泄露'],
   ['profile', '看画像'],
   ['config', '管配置'],
@@ -329,32 +333,39 @@ function ServerCard({ server, go }: { server: ServerReport | null | Error | unde
   );
 }
 
-function AgentsCard({ stats, go }: { stats: Stats | Error | undefined } & Go) {
+function ScoreCard({ score, go }: { score: Scorecard | Error | undefined } & Go) {
   let body: ReactNode;
-  if (stats instanceof Error) body = <p className="err">{stats.message}</p>;
-  else if (!stats) body = <Skeleton lines={4} />;
+  if (score instanceof Error) body = <p className="err">{score.message}</p>;
+  else if (!score) body = <Skeleton lines={4} />;
+  else if (!score.sessions.length) body = <p className="meta">更新索引后，这里会显示每个 agent 把事办成了多少。</p>;
   else {
-    const count = (a: string) => stats.sessions.find((s) => s.agent === a)?.n ?? 0;
-    const max = Math.max(1, ...AGENTS.map(count));
-    // 同一种颜色的横条比长短，名字和数字直接写在旁边，不靠颜色区分
+    const total = score.sessions.length;
+    const smooth = score.sessions.filter((s) => s.outcome === 'smooth').length;
+    // 每个 agent 一行：名字、结果条、顺利的比例；比例直接写成数字，不靠颜色读
     body = (
-      <table className="agent-bars">
-        <tbody>
-          {AGENTS.map((a) => (
-            <tr key={a}>
-              <th>{AGENT_LABEL[a]}</th>
-              <td>
-                <div className="hbar" style={{ width: `${(count(a) / max) * 100}%` }} />
-              </td>
-              <td>{count(a)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <>
+        <p className="big">
+          <b>{Math.round((smooth / total) * 100)}%</b> 的会话顺利完成
+        </p>
+        <table className="score-mini">
+          <tbody>
+            {score.byAgent.map((r) => (
+              <tr key={r.key}>
+                <th>{AGENT_LABEL[r.agents[0]]}</th>
+                <td>
+                  <OutcomeBar row={r} />
+                </td>
+                <td>{Math.round((r.smooth / r.sessions) * 100)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <OutcomeLegend />
+      </>
     );
   }
   return (
-    <Card icon="user" title="各 agent 的会话数" view="profile" go={go} action="看看 agent 眼中的你">
+    <Card icon="chart" title="成绩单" view="score" go={go} action="看看谁把事办成了">
       {body}
     </Card>
   );

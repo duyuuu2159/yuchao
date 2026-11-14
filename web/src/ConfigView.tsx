@@ -31,7 +31,7 @@ export function ConfigView() {
   return (
     <div className="page configs">
       <PageHeader
-        kicker="04 · 配置"
+        kicker="05 · 配置"
         title="配置管家"
         desc="记录各 agent 配置文件的每个版本，旁边散落的旧备份也整理进同一条时间线。内容里的 key、密码已打码。回滚会改写配置文件，只能在命令行里执行。"
       />

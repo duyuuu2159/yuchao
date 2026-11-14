@@ -170,3 +170,16 @@ test('配置管家：文件名有歧义或不存在时给出明确提示', () =>
   const missing = cli(home, 'config', 'show', '99999');
   assert.notEqual(missing.code, 0);
 });
+
+test('成绩单：表格、JSON 和参数校验', () => {
+  const home = makeHome();
+  cli(home, 'index');
+  const r = cli(home, 'score');
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /成绩单\s+\d+ 个会话：顺利 \d+%/);
+  assert.match(r.out, /按 agent/);
+  const json = JSON.parse(cli(home, 'score', '--json').out);
+  assert.ok(json.byAgent.length > 0);
+  assert.ok(json.sessions.every((s: { outcome: string }) => ['smooth', 'rework', 'unresolved'].includes(s.outcome)));
+  assert.notEqual(cli(home, 'score', '--days', 'abc').code, 0);
+});

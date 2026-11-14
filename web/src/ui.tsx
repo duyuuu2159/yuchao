@@ -25,6 +25,7 @@ const ICONS = {
   back: 'M11.500 5 6.500 10l5 5',
   arrow: 'M4 10h12M11.500 5.500 16 10l-4.500 4.500',
   relay: 'M3 7h9.500M9.500 4l3 3-3 3M17 13H7.500M10.500 10l-3 3 3 3',
+  chart: 'M3.500 16.500h13M5.500 16.500V11M10 16.500V5M14.500 16.500V8.500',
 } as const;
 
 export type IconName = keyof typeof ICONS;
@@ -145,7 +146,7 @@ export function Empty({ icon = 'search', title, children }: { icon?: IconName; t
 
 // ───────── 地址路由：#/页面/会话id?seq=消息序号 ─────────
 
-export const VIEWS = ['overview', 'sessions', 'scan', 'profile', 'config', 'server'] as const;
+export const VIEWS = ['overview', 'sessions', 'score', 'scan', 'profile', 'config', 'server'] as const;
 export type View = (typeof VIEWS)[number];
 
 export interface Route {
