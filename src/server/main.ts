@@ -14,6 +14,7 @@ import { redact } from '../core/scan.ts';
 import { buildScorecard } from '../core/scorecard.ts';
 import { checkServer, deployHistory, loadServers, recordDeploy, type ServerConfig, type ServerReport } from '../core/server.ts';
 import { defaultSourceDirs, type SourceDirs } from '../core/sources.ts';
+import { usageReport } from '../core/spend.ts';
 import { type SearchOptions, Store } from '../core/store.ts';
 import type { AgentKind, Role } from '../core/types.ts';
 
@@ -115,6 +116,11 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
       }
 
       // 接力：只读，本地生成交接说明
+      if (path === '/api/usage' && req.method === 'GET') {
+        const days = Math.min(365, Math.max(7, Number(url.searchParams.get('days')) || 60));
+        const r = usageReport(store, { days });
+        return json(res, 200, { ...r, top: r.top.map((t) => ({ ...t, title: safe(t.title) })) });
+      }
       if (path === '/api/scorecard' && req.method === 'GET') {
         const days = Number(url.searchParams.get('days'));
         const sc = buildScorecard(store, { days: days > 0 ? days : undefined, agent: agentParam(url.searchParams.get('agent')) });

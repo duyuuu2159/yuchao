@@ -336,3 +336,27 @@ export interface Scorecard {
 export const scoreApi = {
   get: (days?: number, raw?: boolean) => get<Scorecard>(`/api/scorecard?${qs({ days: days ? String(days) : undefined, raw: flag(raw) })}`),
 };
+
+// ---------------- 用量 ----------------
+
+export interface UsageDay {
+  day: string;
+  byAgent: Partial<Record<Agent, number>>;
+  total: number;
+}
+
+export interface CostlySession {
+  id: string;
+  agent: Agent;
+  title: string | null;
+  startedAt: string | null;
+  model: string | null;
+  input: number;
+  output: number;
+  cacheRead: number;
+}
+
+export const usageApi = {
+  get: (days = 60, raw?: boolean) =>
+    get<{ days: UsageDay[]; top: CostlySession[] }>(`/api/usage?${qs({ days: String(days), raw: flag(raw) })}`),
+};

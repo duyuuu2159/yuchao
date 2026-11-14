@@ -69,7 +69,7 @@ test('会话、标题和搜索结果默认打码，raw=1 才返回原文', async
   const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
   const get = async (p: string) => (await fetch(base + p)).text();
   try {
-    for (const p of ['/api/sessions', '/api/sessions/codex%3Ac1', '/api/search?q=203.0.113', '/api/scorecard'])
+    for (const p of ['/api/sessions', '/api/sessions/codex%3Ac1', '/api/search?q=203.0.113', '/api/scorecard', '/api/usage'])
       assert.ok(!(await get(p)).includes(PW), p);
     assert.ok((await get('/api/sessions?raw=1')).includes(PW));
     assert.ok((await get('/api/scorecard?raw=1')).includes(PW), '成绩单的会话标题 raw=1 时返回原文');

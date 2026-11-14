@@ -17,6 +17,7 @@ import {
 import { when } from './format.ts';
 import { HandoffPanel } from './HandoffPanel.tsx';
 import { OutcomeBar, OutcomeLegend } from './ScoreView.tsx';
+import { UsageSection } from './UsageSection.tsx';
 import { AgentBadge, Cmd, Icon, type IconName, Skeleton, Status, type View } from './ui.tsx';
 
 /** 加载一份数据：undefined 表示还在加载，Error 表示失败 */
@@ -114,7 +115,9 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
         <ServerCard server={server} go={go} />
         <ScoreCard score={score} go={go} />
       </div>
-      <SectionLabel no="02" name="最近" />
+      <SectionLabel no="02" name="用量" />
+      <UsageSection reloadKey={reloadKey} onOpen={(id) => go('sessions', id)} />
+      <SectionLabel no="03" name="最近" />
       <Recent sessions={recent} go={go} />
     </div>
   );
