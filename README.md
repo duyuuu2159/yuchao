@@ -5,9 +5,7 @@
 ![Node](https://img.shields.io/badge/node-%E2%89%A524-339933)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-把 Claude Code、Codex、WorkBuddy、DeepSeek Harness 等多个 AI agent 的本地会话管在一起：一个搜索框搜遍所有 agent 的历史，顺便找出你不小心贴进对话里的密码。
-
-![概览页](docs/images/overview.png)
+把 Claude Code、Codex、WorkBuddy、DeepSeek Harness 等多个 AI agent 的本地会话管在一起：一个搜索框搜遍所有 agent 的历史；一张成绩单看清每个 agent、每个模型到底有没有把事办成；顺便找出你不小心贴进对话里的密码。
 
 **先试试**——用一套演示数据启动，不读取你电脑上的任何会话：
 
@@ -26,12 +24,29 @@ npm run demo
 | | |
 |---|---|
 | 搜索延迟 | 作者本机 6.5 万条真实消息：**P50 15 毫秒，P95 17 毫秒**（优化前 P95 264 毫秒，[过程](docs/perf.md)） |
-| 首次建索引 | 10 万条消息约 5 秒，约 2 万条/秒；之后只重新解析有变化的文件 |
-| 网页体积 | JS 经 gzip 84 KB，不用任何 UI 库、图标库、Markdown 库；CI 里有 100 KB 的预算 |
-| 测试 | 124 个，行覆盖率 95%；端到端测试用临时家目录真实启动命令行，画像生成对着假的大模型接口跑完整流程 |
+| 首次建索引 | 10 万条合成消息约 5 秒；作者本机真实数据（工具输出多，索引 534 MB）约 100 秒。之后只重新解析有变化的文件 |
+| 网页体积 | JS 经 gzip 86 KB，不用任何 UI 库、图标库、Markdown 库；CI 里有 100 KB 的预算 |
+| 测试 | 143 个，行覆盖率 95%；端到端测试用临时家目录真实启动命令行，画像生成对着假的大模型接口跑完整流程 |
 | 运行时依赖 | 5 个 |
 
-## 能做什么
+## 成绩单：哪个 agent、哪个模型真的把事办成了
+
+![成绩单](docs/images/score.png)
+
+用量工具只告诉你花了多少 token。鱼巢同时拿着几家 agent 的记录，能回答**值不值**：每个会话最后是顺利完成、返工后完成，还是没解决。
+
+- **判断依据是会话里实际发生的事**：agent 自己记录的执行结果（Claude 的 `is_error`、Codex 的退出码……）、你说过的「还是不行」、你有没有换个说法把要求再说一遍
+- **只有多 agent 工具才看得到的信号**：一件事在 Claude 里没搞定、转头去 Codex 接着做——这是「没解决」最真实的证据
+- **区分 agent 的问题和接口的问题**：一字不差地重发、`Try again` 算接口重试，不算 agent 返工；agent 自己试错再修好也不算返工
+- **每个结论都能点进去看原因**，样本少的行会标出来；不调用大模型，不花钱
+
+规则是在作者真实的 160 多个会话上一条条校准出来的，过程见 [devlog](docs/devlog.md)。
+
+```bash
+yuchao score --days 30 --all
+```
+
+## 其它功能
 
 - **一个搜索框搜所有 agent**：中文全文搜索（SQLite FTS5 trigram，不需要分词词典）；增量索引；子 agent 挂在父会话下；分叉会话复制的历史只出现一次
 - **安全扫描**：找出会话里泄露的密码、API key、私钥、服务器凭据；同一个秘密归为一组；界面和报告默认打码
@@ -43,6 +58,7 @@ npm run demo
 
 | | |
 |---|---|
+| ![概览](docs/images/overview.png) | ![成绩单（深色）](docs/images/score-dark.png) |
 | ![会话](docs/images/session.png) | ![安全扫描（深色）](docs/images/scan-dark.png) |
 | ![画像](docs/images/profile.png) | ![概览（深色）](docs/images/overview-dark.png) |
 
@@ -116,6 +132,7 @@ node src/cli/main.ts serve
 | `config` | 配置文件状态；`config import` 导入旧备份，`config log <文件>` 查看历史 |
 | `config diff <文件> [旧] [新]` | 对比两个版本（已打码） |
 | `config restore <版本> --yes` | 回滚，先保存当前内容；损坏的版本需要 `--force` |
+| `score` | 成绩单：每个 agent、每个模型的顺利 / 返工 / 没解决比例和 token 花费；`--days 30` 只看最近 30 天，`--all` 列出没解决和返工的会话及原因，`--json` 输出 JSON |
 | `handoff <会话id> [--to codex]` | 接力：生成交接说明，粘贴给另一个 agent；会话 id 写 `latest` 表示最近一个会话，后面接 `\| clip` 直接复制 |
 | `server [名字]` | 服务器面板：服务、版本、磁盘、最近的异常（只读）；`--json` 输出 JSON |
 | `server add <名字> <用户名@主机>` | 添加服务器，`--url` 填公网地址用于检查 HTTPS |
