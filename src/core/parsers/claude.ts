@@ -1,7 +1,9 @@
 import { basename } from 'node:path';
 import { readJsonl } from '../lines.ts';
 import { isClaudeContext, titleFrom, toText } from '../text.ts';
+import { claudeFailed } from '../toolstatus.ts';
 import { clip, type Role, type Session } from '../types.ts';
+import { UsageTally } from '../usage.ts';
 
 /**
  * 解析 Claude Code 的会话文件：
@@ -30,12 +32,15 @@ export async function parseClaudeFile(path: string): Promise<Session> {
     archived: false,
     sourcePath: path,
     messages: [],
+    usage: [],
   };
+  // Claude Code 把一次回复的每个内容块各写成一行，每行带着同一份 usage，按消息 id 去重
+  const usageById = new Map<string, { model: string | null; u: any }>();
 
   let firstUserText: string | null = null;
-  const push = (ts: string | null, role: Role, text: string, toolName: string | null = null) => {
+  const push = (ts: string | null, role: Role, text: string, toolName: string | null = null, failed: boolean | null = null) => {
     if (!text.trim()) return;
-    session.messages.push({ seq: session.messages.length, ts, role, toolName, text });
+    session.messages.push({ seq: session.messages.length, ts, role, toolName, text, failed });
   };
 
   for await (const rec of readJsonl(path)) {
@@ -49,6 +54,10 @@ export async function parseClaudeFile(path: string): Promise<Session> {
     // 标题可能被改过多次，以最后一次为准
     if (rec.type === 'custom-title' && rec.customTitle) session.title = rec.customTitle;
 
+    if (rec.type === 'assistant' && rec.message?.usage) {
+      const id = rec.message.id ?? rec.uuid;
+      if (id) usageById.set(id, { model: rec.message.model ?? null, u: rec.message.usage });
+    }
     if (rec.type !== 'user' && rec.type !== 'assistant') continue;
     const content = rec.message?.content;
     const meta = rec.isMeta === true || rec.isCompactSummary === true;
@@ -61,7 +70,10 @@ export async function parseClaudeFile(path: string): Promise<Session> {
           push(ts, context ? 'context' : 'user', b.text);
           if (!context && firstUserText === null) firstUserText = b.text;
         } else if (b.type === 'tool_result') {
-          push(ts, 'tool_result', clip(toText(b.content)));
+          {
+            const out = toText(b.content);
+            push(ts, 'tool_result', clip(out), null, claudeFailed(b, out));
+          }
         }
       }
     } else if (Array.isArray(content)) {
@@ -73,6 +85,15 @@ export async function parseClaudeFile(path: string): Promise<Session> {
     }
   }
 
+  const tally = new UsageTally();
+  for (const { model, u } of usageById.values()) {
+    // <synthetic> 是客户端自己生成的占位回复（例如被中断），不是真正的模型请求
+    if (model === '<synthetic>') continue;
+    const cacheRead = u.cache_read_input_tokens ?? 0;
+    const input = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + cacheRead;
+    tally.add(model, { input, output: u.output_tokens, cacheRead });
+  }
+  session.usage = tally.list();
   session.title ??= firstUserText ? titleFrom(firstUserText) : null;
   return session;
 }

@@ -1,6 +1,8 @@
 // 所有 agent 的会话都被转换成这里的统一模型，后面的索引、搜索、界面只认这一种格式。
 
 /** 新增 agent 时在这里加一个名字，再到 agents.ts 注册适配器 */
+import type { ModelUsage } from './usage.ts';
+
 export type AgentKind = 'claude' | 'codex' | 'workbuddy' | 'dsh';
 
 /**
@@ -18,6 +20,8 @@ export interface Message {
   role: Role;
   toolName: string | null;
   text: string;
+  /** 只对 tool_result 有意义：agent 记录的执行结果。true 失败、false 成功、null 或缺省表示不知道 */
+  failed?: boolean | null;
 }
 
 export interface Session {
@@ -34,6 +38,8 @@ export interface Session {
   archived: boolean;
   sourcePath: string;
   messages: Message[];
+  /** 按模型汇总的 token 用量；记录里没有用量的 agent 为空数组 */
+  usage: ModelUsage[];
 }
 
 /** 工具结果可能是整页日志或 base64 图片，只保留开头部分用于检索 */

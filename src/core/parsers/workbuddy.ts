@@ -1,7 +1,9 @@
 import { basename } from 'node:path';
 import { readJsonl } from '../lines.ts';
 import { titleFrom, toText } from '../text.ts';
+import { workbuddyFailed } from '../toolstatus.ts';
 import { clip, type Role, type Session } from '../types.ts';
+import { deepFind, deepFindObject, UsageTally } from '../usage.ts';
 
 /**
  * 解析 WorkBuddy（腾讯 CodeBuddy 系的桌面 agent）的会话文件：
@@ -24,12 +26,14 @@ export async function parseWorkBuddyFile(path: string): Promise<Session> {
     archived: false,
     sourcePath: path,
     messages: [],
+    usage: [],
   };
+  const tally = new UsageTally();
 
   let firstUserText: string | null = null;
-  const push = (ts: string | null, role: Role, text: string, toolName: string | null = null) => {
+  const push = (ts: string | null, role: Role, text: string, toolName: string | null = null, failed: boolean | null = null) => {
     if (!text.trim()) return;
-    session.messages.push({ seq: session.messages.length, ts, role, toolName, text });
+    session.messages.push({ seq: session.messages.length, ts, role, toolName, text, failed });
   };
 
   for await (const rec of readJsonl(path)) {
@@ -37,6 +41,14 @@ export async function parseWorkBuddyFile(path: string): Promise<Session> {
     if (ts) {
       session.startedAt ??= ts;
       session.updatedAt = ts;
+    }
+    // 用量记在 agent 的回复上，OpenAI 的口径：inputTokens 已经包含命中缓存的部分
+    if (rec.type === 'message' && rec.role === 'assistant') {
+      const u = deepFindObject(rec, 'usage');
+      if (u) {
+        const cached = (u.inputTokensDetails ?? []).reduce((n: number, d: any) => n + (d?.cached_tokens ?? 0), 0);
+        tally.add(deepFind(rec, 'model'), { input: u.inputTokens, output: u.outputTokens, cacheRead: cached }, u.requests ?? 1);
+      }
     }
     if (!session.cwd && typeof rec.cwd === 'string') session.cwd = rec.cwd;
 
@@ -63,13 +75,17 @@ export async function parseWorkBuddyFile(path: string): Promise<Session> {
         push(ts, 'tool_call', clip(toText(rec.arguments)), rec.name ?? null);
         break;
       case 'function_call_result':
-        push(ts, 'tool_result', clip(toText(rec.output?.text ?? rec.output)));
+        {
+          const out = toText(rec.output?.text ?? rec.output);
+          push(ts, 'tool_result', clip(out), null, workbuddyFailed(rec.status, out));
+        }
         break;
       // reasoning 是模型的思考过程，和 Claude 的 thinking 一样不收录
     }
   }
 
   session.title ??= firstUserText ? titleFrom(firstUserText) : null;
+  session.usage = tally.list();
   return session;
 }
 

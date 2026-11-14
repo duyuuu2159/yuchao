@@ -43,9 +43,9 @@ export interface Handoff {
 /** 写文件类的工具：各家叫法不同 */
 const EDIT_TOOLS = /^(Write|Edit|MultiEdit|NotebookEdit|write|edit|apply_patch|.*write_file)$/;
 /** 执行命令类的工具 */
-const SHELL_TOOLS = /^(Bash|PowerShell|pwsh|exec_command|shell|.*ssh_exec)$/;
+export const SHELL_TOOLS = /^(Bash|PowerShell|pwsh|exec_command|shell|.*ssh_exec)$/;
 /** 只是「继续」「好的」这种推进对话的话，不算一条要求 */
-const FILLER = /^(继续|好|好的|嗯|ok|okay|可以|行|是|对|开始|继续做|接着做|yes|y|go)[。.!！~]*$/i;
+export const FILLER = /^(继续|好|好的|嗯|ok|okay|可以|行|是|对|开始|继续做|接着做|yes|y|go)[。.!！~]*$/i;
 
 /** 工具参数可能被截断成不完整的 JSON，所以按字段用正则取，再按 JSON 字符串规则还原转义 */
 function field(text: string, names: string[]): string[] {

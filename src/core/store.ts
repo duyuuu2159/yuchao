@@ -8,7 +8,7 @@ import { discover, type SourceDirs, type SourceFile } from './sources.ts';
 import type { AgentKind, Role, Session } from './types.ts';
 
 /** 解析器或表结构有变化时加 1，已有的索引会在下次打开时清空重建 */
-export const PARSER_VERSION = 8;
+export const PARSER_VERSION = 10;
 
 export function defaultDbPath(): string {
   return process.env.YUCHAO_DB ?? join(homedir(), '.yuchao', 'index.db');
@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS messages (
   ts         TEXT,
   role       TEXT NOT NULL,
   tool_name  TEXT,
-  text       TEXT NOT NULL
+  text       TEXT NOT NULL,
+  failed     INTEGER   -- 工具结果：1 失败、0 成功、NULL 不知道（见 toolstatus.ts）
 );
 CREATE INDEX IF NOT EXISTS messages_session ON messages(session_id, seq);
 -- 搜索默认只看用户和 agent 的话，而工具调用和工具输出占了消息的八成以上。
@@ -63,6 +64,16 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
   text, content='messages', content_rowid='id', tokenize='trigram'
 );
 ${FTS_TRIGGERS}
+-- 每个会话按模型汇总的 token 用量（成绩单用）。input 包含命中缓存的部分，口径见 usage.ts
+CREATE TABLE IF NOT EXISTS session_usage (
+  session_id TEXT NOT NULL,
+  model      TEXT NOT NULL,
+  requests   INTEGER NOT NULL,
+  input      INTEGER NOT NULL,
+  output     INTEGER NOT NULL,
+  cache_read INTEGER NOT NULL,
+  PRIMARY KEY (session_id, model)
+);
 -- 用户标记为误报的扫描结果，只存指纹，不存原文；重建索引时保留
 CREATE TABLE IF NOT EXISTS scan_ignores (
   fingerprint TEXT PRIMARY KEY,
@@ -129,11 +140,16 @@ export class Store {
     // 页缓存上限从默认的 2 MB 调到 64 MB（按需占用）。搜索要按命中的 id 逐条回表，
     // 缓存太小时几乎每次都要重新读页：10 万条消息的基准里，常见词的搜索因此慢了 4 倍（见 docs/perf.md）
     this.db.exec('PRAGMA cache_size = -65536;');
+    // 旧版本建的库没有 failed 列：CREATE TABLE IF NOT EXISTS 不会改已有的表，要单独补上
+    const hasFailed = (this.db.prepare("SELECT 1 FROM pragma_table_info('messages') WHERE name = 'failed'").get() as unknown) !== undefined;
+    const tableExists =
+      (this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages'").get() as unknown) !== undefined;
+    if (tableExists && !hasFailed) this.db.exec('ALTER TABLE messages ADD COLUMN failed INTEGER');
     this.db.exec(SCHEMA);
     // 解析规则改变后，没改动的文件也要重新解析，否则旧结果会一直留在库里
     const { user_version } = this.db.prepare('PRAGMA user_version').get() as { user_version: number };
     if (user_version !== PARSER_VERSION) {
-      this.db.exec('DELETE FROM files; DELETE FROM messages; DELETE FROM sessions;');
+      this.db.exec('DELETE FROM files; DELETE FROM messages; DELETE FROM sessions; DELETE FROM session_usage;');
       this.db.exec(`PRAGMA user_version = ${PARSER_VERSION}`);
     }
   }
@@ -276,6 +292,7 @@ export class Store {
 
   private removeSession(id: string) {
     this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(id);
+    this.db.prepare('DELETE FROM session_usage WHERE session_id = ?').run(id);
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
 
@@ -300,8 +317,12 @@ export class Store {
         s.sourcePath,
         s.messages.length,
       );
-    const ins = this.db.prepare('INSERT INTO messages(session_id, seq, ts, role, tool_name, text) VALUES (?, ?, ?, ?, ?, ?)');
-    for (const m of s.messages) ins.run(s.id, m.seq, m.ts, m.role, m.toolName, m.text);
+    const ins = this.db.prepare('INSERT INTO messages(session_id, seq, ts, role, tool_name, text, failed) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    for (const m of s.messages) ins.run(s.id, m.seq, m.ts, m.role, m.toolName, m.text, m.failed == null ? null : m.failed ? 1 : 0);
+    const use = this.db.prepare(
+      'INSERT INTO session_usage(session_id, model, requests, input, output, cache_read) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    for (const u of s.usage) use.run(s.id, u.model, u.requests, u.input, u.output, u.cacheRead);
   }
 
   /**

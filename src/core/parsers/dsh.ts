@@ -1,7 +1,9 @@
 import { basename, dirname } from 'node:path';
 import { readJsonl } from '../lines.ts';
 import { titleFrom, toText } from '../text.ts';
+import { dshFailed } from '../toolstatus.ts';
 import { clip, type Role, type Session } from '../types.ts';
+import { UsageTally } from '../usage.ts';
 
 /**
  * 解析 DeepSeek Harness（dsh）的会话文件：
@@ -26,13 +28,15 @@ export async function parseDshFile(path: string): Promise<Session> {
     archived: false,
     sourcePath: path,
     messages: [],
+    usage: [],
   };
+  const tally = new UsageTally();
 
   let firstUserText: string | null = null;
   let subagentLabel: string | null = null;
-  const push = (ts: string | null, role: Role, text: string, toolName: string | null = null) => {
+  const push = (ts: string | null, role: Role, text: string, toolName: string | null = null, failed: boolean | null = null) => {
     if (!text.trim()) return;
-    session.messages.push({ seq: session.messages.length, ts, role, toolName, text });
+    session.messages.push({ seq: session.messages.length, ts, role, toolName, text, failed });
   };
 
   for await (const rec of readJsonl(path)) {
@@ -65,6 +69,8 @@ export async function parseDshFile(path: string): Promise<Session> {
         break;
       }
       case 'assistant/message':
+        // 每条回复带着这次请求的用量，模型名在 message.source 里
+        if (d.usage) tally.add(d.message?.source?.model, { input: d.usage.inputTokens, output: d.usage.outputTokens });
         for (const b of d.message?.content ?? []) {
           if (b.type === 'text') push(ts, 'assistant', b.text ?? '');
           else if (b.type === 'tool-call') push(ts, 'tool_call', clip(toText(b.arguments)), b.name ?? null);
@@ -72,7 +78,10 @@ export async function parseDshFile(path: string): Promise<Session> {
         }
         break;
       case 'tool/result':
-        push(ts, 'tool_result', clip(toText((d.message?.content ?? []).filter((c: any) => c.type === 'text'))));
+        {
+          const out = toText((d.message?.content ?? []).filter((c: any) => c.type === 'text'));
+          push(ts, 'tool_result', clip(out), null, dshFailed(d, out));
+        }
         break;
       case 'compaction/summary':
         push(ts, 'context', clip(toText(d.summary)));
@@ -82,5 +91,6 @@ export async function parseDshFile(path: string): Promise<Session> {
 
   session.id = `dsh:${session.nativeId}`;
   session.title ??= subagentLabel ? `子 agent · ${subagentLabel}` : firstUserText ? titleFrom(firstUserText) : null;
+  session.usage = tally.list();
   return session;
 }
