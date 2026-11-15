@@ -69,10 +69,52 @@ test('会话、标题和搜索结果默认打码，raw=1 才返回原文', async
   const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
   const get = async (p: string) => (await fetch(base + p)).text();
   try {
-    for (const p of ['/api/sessions', '/api/sessions/codex%3Ac1', '/api/search?q=203.0.113', '/api/scorecard', '/api/usage'])
+    for (const p of [
+      '/api/sessions',
+      '/api/sessions/codex%3Ac1',
+      '/api/search?q=203.0.113',
+      '/api/scorecard',
+      '/api/usage',
+      '/api/diagnosis/codex%3Ac1',
+    ])
       assert.ok(!(await get(p)).includes(PW), p);
     assert.ok((await get('/api/sessions?raw=1')).includes(PW));
     assert.ok((await get('/api/scorecard?raw=1')).includes(PW), '成绩单的会话标题 raw=1 时返回原文');
+  } finally {
+    srv.close();
+  }
+});
+
+test('复盘接口：只返回位置不返回原文，接力另一头的标题默认打码，找不到返回 404', async () => {
+  const store = new Store(':memory:');
+  const PW = 'Wk3pRz7Qn5';
+  const add = store.db.prepare(
+    `INSERT INTO sessions(id, agent, native_id, parent_id, title, cwd, started_at, updated_at, archived, source_path, message_count)
+     VALUES (?, ?, ?, NULL, ?, NULL, ?, ?, 0, '/fake', 2)`,
+  );
+  const msg = store.db.prepare(
+    'INSERT INTO messages(session_id, seq, ts, role, tool_name, text, failed) VALUES (?, ?, NULL, ?, NULL, ?, NULL)',
+  );
+  const ask = `服务器 203.0.113.7 的 nginx 一直 502，密码 ${PW}，帮我看看 upstream`;
+  add.run('claude:a', 'claude', 'a', '服务器 502', '2026-11-01T08:00:00Z', '2026-11-01T09:00:00Z');
+  msg.run('claude:a', 0, 'user', ask);
+  msg.run('claude:a', 1, 'assistant', '看不出来');
+  add.run('codex:b', 'codex', 'b', `接着修 502，密码 ${PW}`, '2026-11-01T10:00:00Z', '2026-11-01T11:00:00Z');
+  msg.run('codex:b', 0, 'user', ask + '，之前没修好');
+  msg.run('codex:b', 1, 'assistant', '修好了');
+
+  const srv = createServer(createApp(store, { claude: join(EMPTY, '.claude') }));
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+  try {
+    const res = await fetch(base + '/api/diagnosis/claude%3Aa');
+    const text = await res.text();
+    assert.equal(res.status, 200);
+    assert.equal(JSON.parse(text).handedOffTo.id, 'codex:b');
+    assert.ok(!text.includes(PW), '接力另一头的标题打码');
+    assert.ok(!text.includes('203.0.113.7'), '不含消息原文');
+    assert.ok((await (await fetch(base + '/api/diagnosis/claude%3Aa?raw=1')).text()).includes(PW));
+    assert.equal((await fetch(base + '/api/diagnosis/claude%3Anone')).status, 404);
   } finally {
     srv.close();
   }

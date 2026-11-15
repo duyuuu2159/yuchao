@@ -11,7 +11,7 @@ import { readMemories } from '../core/memories.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
 import { activityStats } from '../core/profile/evidence.ts';
 import { redact } from '../core/scan.ts';
-import { buildScorecard } from '../core/scorecard.ts';
+import { buildScorecard, diagnoseSession, type LinkedSession } from '../core/scorecard.ts';
 import { checkServer, deployHistory, loadServers, recordDeploy, type ServerConfig, type ServerReport } from '../core/server.ts';
 import { defaultSourceDirs, type SourceDirs } from '../core/sources.ts';
 import { usageReport } from '../core/spend.ts';
@@ -125,6 +125,13 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
         const days = Number(url.searchParams.get('days'));
         const sc = buildScorecard(store, { days: days > 0 ? days : undefined, agent: agentParam(url.searchParams.get('agent')) });
         return json(res, 200, { ...sc, sessions: sc.sessions.map((s) => ({ ...s, title: safe(s.title) })) });
+      }
+      // 复盘：只返回结论、理由和标记所在的位置，不含消息原文
+      if (path.startsWith('/api/diagnosis/') && req.method === 'GET') {
+        const d = diagnoseSession(store, decodeURIComponent(path.slice('/api/diagnosis/'.length)));
+        if (!d) return json(res, 404, { error: '找不到这个会话' });
+        const link = (l: LinkedSession | null) => l && { ...l, title: safe(l.title) };
+        return json(res, 200, { ...d, handedOffTo: link(d.handedOffTo), handedOffFrom: link(d.handedOffFrom) });
       }
       if (path.startsWith('/api/handoff/') && req.method === 'GET') {
         const ref = decodeURIComponent(path.slice('/api/handoff/'.length));
