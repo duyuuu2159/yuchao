@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { parseClaudeFile } from '../src/core/parsers/claude.ts';
 import { parseCodexFile } from '../src/core/parsers/codex.ts';
 import { parseWorkBuddyFile } from '../src/core/parsers/workbuddy.ts';
-import { buildScorecard, detectHandoffs, judge, sessionSignals } from '../src/core/scorecard.ts';
+import { buildScorecard, detectHandoffs, diagnoseSession, judge, sessionSignals, tokenShare, traceSession } from '../src/core/scorecard.ts';
 import { Store } from '../src/core/store.ts';
 import { claudeFailed, codexFailed, dshFailed, workbuddyFailed } from '../src/core/toolstatus.ts';
 import type { Role } from '../src/core/types.ts';
@@ -148,7 +148,81 @@ test('判断：你最后一句在说不行、或者之后换了别的 agent 接�
   assert.equal(judge(sessionSignals([u('修一下登录'), a('改好了'), u('还是不行，算了')]), false).outcome, 'unresolved');
   const { outcome, reasons } = judge(sessionSignals([u('修一下登录'), a('改好了')]), true);
   assert.equal(outcome, 'unresolved');
-  assert.deepEqual(reasons, ['之后换了别的 agent 接着做']);
+  assert.deepEqual(reasons, [{ text: '之后换了别的 agent 接着做', seq: null }], '证据在另一个会话里，没有消息位置');
+});
+
+test('判断：agent 还没动手时说的「打不开了」「还是不行」是在描述问题，不算返工', () => {
+  // 真实数据里「快点帮我看看 我的 xx 打不开了」被算成了返工
+  const sig = sessionSignals([u('我的编辑器打不开了，帮我看看'), call('Bash'), result(false), a('修好了')]);
+  assert.equal(sig.negatives, 0);
+  assert.equal(judge(sig, false).outcome, 'smooth');
+  // 只有这一句、agent 只回了话：也不能因为这句话判成没解决
+  assert.equal(judge(sessionSignals([u('网站还是打不开'), a('可能是 DNS 的问题，你试试……')]), false).outcome, 'smooth');
+  // agent 回过话之后再说，才是在说它没做好
+  assert.equal(sessionSignals([u('继续'), a('改好了'), u('还是打不开')]).negatives, 1);
+});
+
+// ---------------- 复盘 ----------------
+
+test('复盘：每条理由指向证据所在的消息', () => {
+  seq = 0;
+  const msgs = [
+    u('把首页的图片改成懒加载'), // 0
+    a('改好了'), // 1
+    u('首页的图片改成懒加载，下面的也要'), // 2：重说
+    a('都改了'), // 3
+    u('还是不行，滚动到底部也没加载'), // 4：说不行
+    call('Bash'), // 5
+    result(false), // 6：之后执行成功了，所以是返工后完成
+  ];
+  const { outcome, reasons } = judge(sessionSignals(msgs), false);
+  assert.equal(outcome, 'rework');
+  assert.deepEqual(reasons, [
+    { text: '说过 1 次「还是不行」', seq: 4 },
+    { text: '同一个要求换个说法又说了 1 次', seq: 2 },
+  ]);
+});
+
+test('复盘：卡住的位置是收尾那一串连续失败的第一条；中间成功过就重新算', () => {
+  seq = 0;
+  const msgs = [
+    u('部署上线'), // 0
+    call('Bash'), // 1
+    result(true, 'npm ERR! missing script'), // 2：失败，但下一次成功了
+    call('Bash'), // 3
+    result(false), // 4
+    call('Bash'), // 5
+    result(true, 'ssh: connect refused'), // 6：从这里开始一直失败
+    call('Read'), // 7
+    result(true, 'no such file'), // 8：查询类工具失败不打断、也不开始这一串
+    call('Bash'), // 9
+    result(true, 'ssh: connect refused'), // 10
+    a('服务器连不上'), // 11
+  ];
+  const { signals, marks } = traceSession(msgs);
+  assert.equal(signals.at.stuckFrom, 6);
+  assert.deepEqual(judge(signals, false).reasons, [{ text: '最后一次命令以报错收尾', seq: 10 }]);
+  assert.deepEqual(
+    marks.map((m) => `${m.seq}:${m.kind}`),
+    ['0:ask', '2:error', '6:error', '8:error', '10:error'],
+    '时间线上标出每次失败（包括查询类工具），成功的不标',
+  );
+});
+
+test('复盘：时间线上区分你说的每句话是什么', () => {
+  seq = 0;
+  const { marks, signals } = traceSession([
+    u('帮我写一个 SVG 动画'),
+    a('写好了'),
+    u('帮我写一个 SVG 动画'), // 一字不差：重试
+    u('动画太快了，还是不行'),
+    u('好了，可以了'),
+  ]);
+  assert.deepEqual(
+    marks.map((m) => m.kind),
+    ['ask', 'retry', 'negative', 'positive'],
+  );
+  assert.equal(signals.at.stuckFrom, null, '最后说了好了，没有卡住');
 });
 
 // ---------------- 接力 ----------------
@@ -203,4 +277,86 @@ test('成绩单：按 agent 和模型汇总，子 agent 的用量算进主会话
   assert.equal(claude.smooth + claude.rework + claude.unresolved, claude.sessions);
   assert.ok(sc.byModel.some((r) => r.key === 'gpt-6-astra' && r.output === 100));
   for (const s of sc.sessions) assert.ok(s.signals.turns > 0, '你一句话都没说的会话不参与统计');
+});
+
+test('token 花在哪：按结果分；默认不含缓存命中，也可以全算', () => {
+  const xs = [
+    { outcome: 'smooth' as const, input: 100, output: 10, cacheRead: 80 },
+    { outcome: 'rework' as const, input: 300, output: 20, cacheRead: 200 },
+    { outcome: 'smooth' as const, input: 50, output: 5, cacheRead: 0 },
+  ];
+  assert.deepEqual(tokenShare(xs), { smooth: 85, rework: 120, unresolved: 0, total: 205 });
+  assert.deepEqual(tokenShare(xs, { withCache: true }), { smooth: 165, rework: 320, unresolved: 0, total: 485 });
+});
+
+// ---------------- 用数据库里的会话测：接力、复盘 ----------------
+
+type Row = [Role, string, (boolean | null)?, string?];
+function put(
+  store: Store,
+  id: string,
+  agent: string,
+  start: string,
+  end: string,
+  msgs: Row[],
+  extra: { parent?: string; title?: string } = {},
+) {
+  store.db
+    .prepare(
+      `INSERT INTO sessions(id, agent, native_id, parent_id, title, cwd, started_at, updated_at, archived, source_path, message_count)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0, ?, ?)`,
+    )
+    .run(id, agent, id, extra.parent ?? null, extra.title ?? id, start, end, `/fake/${id}.jsonl`, msgs.length);
+  const ins = store.db.prepare('INSERT INTO messages(session_id, seq, ts, role, tool_name, text, failed) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  msgs.forEach(([role, text, failed, tool], i) => {
+    ins.run(id, i, start, role, tool ?? null, text, failed == null ? null : failed ? 1 : 0);
+  });
+}
+
+function relayStore() {
+  const store = new Store(':memory:');
+  const ask = '服务器上的 nginx 一直返回 502，帮我看看 upstream 的配置';
+  put(store, 'claude:a', 'claude', '2026-11-01T08:00:00Z', '2026-11-01T09:00:00Z', [
+    ['user', ask],
+    ['tool_call', '{}', null, 'Bash'],
+    ['tool_result', 'connection refused', true],
+    ['assistant', '连不上'],
+  ]);
+  put(store, 'codex:b', 'codex', '2026-11-01T10:00:00Z', '2026-11-01T11:00:00Z', [
+    ['user', ask + '，之前没修好'],
+    ['assistant', '修好了'],
+  ]);
+  put(store, 'claude:sub', 'claude', '2026-11-01T08:10:00Z', '2026-11-01T08:20:00Z', [['user', '子任务']], { parent: 'claude:a' });
+  put(store, 'claude:quiet', 'claude', '2026-11-03T08:00:00Z', '2026-11-03T08:00:00Z', [['context', '自动注入的内容']]);
+  return store;
+}
+
+test('成绩单：只看一个 agent 时，接力照样认得出来', () => {
+  // 原来只拿这个 agent 自己的会话去配对，而接力一定在两个不同的 agent 之间，所以永远是 0
+  const store = relayStore();
+  const sc = buildScorecard(store, { agent: 'claude' });
+  assert.equal(sc.handoffs, 1);
+  assert.equal(sc.sessions.find((s) => s.id === 'claude:a')?.handedOffTo, 'codex:b');
+});
+
+test('复盘：接力的两头互相链接；子 agent 和你没说话的会话不下结论', () => {
+  const store = relayStore();
+  const a = diagnoseSession(store, 'claude:a')!;
+  assert.equal(a.outcome, 'unresolved');
+  assert.equal(a.handedOffTo?.id, 'codex:b');
+  assert.deepEqual(
+    a.reasons.map((r) => r.seq),
+    [null, 2],
+  );
+  assert.deepEqual(a.span, [0, 3]);
+
+  const b = diagnoseSession(store, 'codex:b')!;
+  assert.equal(b.handedOffFrom?.id, 'claude:a');
+  assert.equal(b.handedOffTo, null);
+
+  const sub = diagnoseSession(store, 'claude:sub')!;
+  assert.equal(sub.outcome, null);
+  assert.match(sub.note ?? '', /子 agent/);
+  assert.equal(diagnoseSession(store, 'claude:quiet')?.outcome, null);
+  assert.equal(diagnoseSession(store, 'claude:none'), null);
 });

@@ -53,6 +53,30 @@ export interface SessionSignals {
   endedOnError: boolean;
   /** 你最后一句有内容的话在说不行，而且之后 agent 没有再成功执行过任何操作（成功了就算返工后完成） */
   endedNegative: boolean;
+  /** 每个结论的证据在哪条消息（seq），界面上点原因可以直接跳过去 */
+  at: {
+    /** 最后一次失败的执行命令 */
+    lastFailure: number | null;
+    /** 你最后一句有内容的话 */
+    lastAsk: number | null;
+    firstNegative: number | null;
+    firstReAsk: number | null;
+    /** 从哪条消息开始卡住、之后再没好起来：收尾那一串连续失败的第一条，或者你最后说不行的那句；没卡住时为 null */
+    stuckFrom: number | null;
+  };
+}
+
+/** 复盘时间线上的一个标记 */
+export type MarkKind = 'ask' | 'positive' | 'negative' | 'reask' | 'retry' | 'error';
+export interface Mark {
+  seq: number;
+  kind: MarkKind;
+}
+
+export interface Reason {
+  text: string;
+  /** 证据所在的消息；「换了别的 agent 接着做」的证据在另一个会话里，为 null */
+  seq: number | null;
 }
 
 /** 字符二元组，用来粗略比较两句话像不像；中文按字、英文按字母，不需要分词 */
@@ -96,6 +120,11 @@ function normalizeError(e: string): string {
 }
 
 export function sessionSignals(messages: Msg[]): SessionSignals {
+  return traceSession(messages).signals;
+}
+
+/** 逐条走一遍会话：数各种信号，同时记下每个信号出现在哪条消息，给复盘时间线用 */
+export function traceSession(messages: Msg[]): { signals: SessionSignals; marks: Mark[] } {
   const s: SessionSignals = {
     turns: 0,
     toolCalls: 0,
@@ -107,47 +136,80 @@ export function sessionSignals(messages: Msg[]): SessionSignals {
     retries: 0,
     endedOnError: false,
     endedNegative: false,
+    at: { lastFailure: null, lastAsk: null, firstNegative: null, firstReAsk: null, stuckFrom: null },
   };
+  const marks: Mark[] = [];
   const asks: string[] = [];
   const errorCounts = new Map<string, number>();
   let lastKnownFailed = false;
   let lastTool: string | null = null;
   let positiveAfterLastError = false;
-  let lastMeaningful: string | null = null;
+  /** 你最后一句有内容的话是不是在说不行 */
+  let lastComplaint = false;
+  /** agent 在这个会话里已经回过话或者动过手 */
+  let agentActed = false;
   let succeededSinceLastAsk = false;
+  /** 收尾那一串连续失败的执行命令从哪条开始；中间有一次成功就清零 */
+  let failStreakFrom: number | null = null;
 
   for (const m of messages) {
     if (m.role === 'user') {
       const text = m.text.trim();
       if (!text) continue;
       s.turns++;
-      if (NEGATIVE.test(text)) s.negatives++;
+      // 一字不差地重发通常是上一次没发出去或者出错了
+      const retry = RETRY.test(text) || asks.includes(text);
+      // agent 还什么都没做时说的「打不开了」「还是不行」是在描述问题，不是在说这个 agent 没做好
+      const complaint = !retry && agentActed && NEGATIVE.test(text);
+      let kind: MarkKind = 'ask';
       if (POSITIVE.test(text)) {
         s.positives++;
         positiveAfterLastError = true;
+        kind = 'positive';
       }
-      if (RETRY.test(text) || asks.includes(text)) {
-        // 一字不差地重发通常是上一次没发出去或者出错了
+      if (complaint) {
+        s.negatives++;
+        s.at.firstNegative ??= m.seq;
+        kind = 'negative';
+      }
+      if (retry) {
         s.retries++;
+        kind = 'retry';
       } else if (!FILLER.test(text)) {
-        lastMeaningful = text;
+        lastComplaint = complaint && !POSITIVE.test(text);
+        s.at.lastAsk = m.seq;
         succeededSinceLastAsk = false;
         // 换个说法又说了一遍：两句都不短、长度相差不到一倍，而且短的那句大部分出现在长的那句里。
         // 长度限制是为了排除「没有」「接着」这种恰好包含在之前长句里的短话
         const similarLength = (x: string) => Math.min(x.length, text.length) * 2 >= Math.max(x.length, text.length);
-        if (text.length >= 8 && asks.some((a) => a.length >= 8 && similarLength(a) && overlap(a, text) >= 0.8)) s.reAsks++;
+        if (text.length >= 8 && asks.some((a) => a.length >= 8 && similarLength(a) && overlap(a, text) >= 0.8)) {
+          s.reAsks++;
+          s.at.firstReAsk ??= m.seq;
+          if (kind === 'ask') kind = 'reask';
+        }
         asks.push(text);
       }
+      marks.push({ seq: m.seq, kind });
+    } else if (m.role === 'assistant') {
+      agentActed = true;
     } else if (m.role === 'tool_call') {
+      agentActed = true;
       s.toolCalls++;
       lastTool = m.toolName;
     } else if (m.role === 'tool_result' && m.failed != null) {
       // 只认 agent 自己记录的执行结果；不知道成败的（还在运行、等待超时、被用户中断）不参与判断
-      if (lastTool && SHELL_TOOLS.test(lastTool)) lastKnownFailed = m.failed;
+      if (lastTool && SHELL_TOOLS.test(lastTool)) {
+        lastKnownFailed = m.failed;
+        if (m.failed) {
+          s.at.lastFailure = m.seq;
+          failStreakFrom ??= m.seq;
+        } else failStreakFrom = null;
+      }
       if (!m.failed) succeededSinceLastAsk = true;
       if (m.failed) {
         s.errors++;
         positiveAfterLastError = false;
+        marks.push({ seq: m.seq, kind: 'error' });
         // 归类用：取输出里像报错的那一行，没有就取第一行
         const line = errorOf(m.text) ?? m.text.trim().split(/\r?\n/)[0] ?? '';
         const k = normalizeError(line);
@@ -157,20 +219,22 @@ export function sessionSignals(messages: Msg[]): SessionSignals {
   }
   s.repeatedErrors = [...errorCounts.values()].filter((n) => n >= 3).length;
   s.endedOnError = lastKnownFailed && !positiveAfterLastError;
-  s.endedNegative = lastMeaningful !== null && NEGATIVE.test(lastMeaningful) && !POSITIVE.test(lastMeaningful) && !succeededSinceLastAsk;
-  return s;
+  s.endedNegative = lastComplaint && !succeededSinceLastAsk;
+  const stuck = [s.endedOnError ? failStreakFrom : null, s.endedNegative ? s.at.lastAsk : null].filter((x) => x !== null);
+  s.at.stuckFrom = stuck.length ? Math.min(...stuck) : null;
+  return { signals: s, marks };
 }
 
-export function judge(sig: SessionSignals, handedOff: boolean): { outcome: Outcome; reasons: string[] } {
-  const unresolved: string[] = [];
-  if (handedOff) unresolved.push('之后换了别的 agent 接着做');
-  if (sig.endedOnError) unresolved.push('最后一次命令以报错收尾');
-  if (sig.endedNegative) unresolved.push('你最后一句在说不行');
+export function judge(sig: SessionSignals, handedOff: boolean): { outcome: Outcome; reasons: Reason[] } {
+  const unresolved: Reason[] = [];
+  if (handedOff) unresolved.push({ text: '之后换了别的 agent 接着做', seq: null });
+  if (sig.endedOnError) unresolved.push({ text: '最后一次命令以报错收尾', seq: sig.at.lastFailure });
+  if (sig.endedNegative) unresolved.push({ text: '你最后一句在说不行', seq: sig.at.lastAsk });
   if (unresolved.length) return { outcome: 'unresolved', reasons: unresolved };
 
-  const rework: string[] = [];
-  if (sig.negatives) rework.push(`说过 ${sig.negatives} 次「还是不行」`);
-  if (sig.reAsks) rework.push(`同一个要求换个说法又说了 ${sig.reAsks} 次`);
+  const rework: Reason[] = [];
+  if (sig.negatives) rework.push({ text: `说过 ${sig.negatives} 次「还是不行」`, seq: sig.at.firstNegative });
+  if (sig.reAsks) rework.push({ text: `同一个要求换个说法又说了 ${sig.reAsks} 次`, seq: sig.at.firstReAsk });
   if (rework.length) return { outcome: 'rework', reasons: rework };
   return { outcome: 'smooth', reasons: [] };
 }
@@ -225,6 +289,53 @@ export function detectHandoffs(sessions: HandoffCandidate[]): Map<string, string
   return out;
 }
 
+/**
+ * 在全部顶层会话里找接力。必须看全部：接力一定发生在两个不同的 agent 之间，
+ * 只拿某一个 agent 或某一段时间的会话去找，配对的另一半可能不在里面
+ */
+export function handoffMap(store: Store): Map<string, string> {
+  const sessions = store.db.prepare('SELECT id, agent, title, started_at, updated_at FROM sessions WHERE parent_id IS NULL').all() as {
+    id: string;
+    agent: AgentKind;
+    title: string | null;
+    started_at: string | null;
+    updated_at: string | null;
+  }[];
+  // 每个会话你说的第一句有内容的话
+  const firstAsk = new Map<string, string>();
+  const asks = store.db.prepare("SELECT session_id, text FROM messages WHERE role = 'user' ORDER BY session_id, seq").all() as {
+    session_id: string;
+    text: string;
+  }[];
+  for (const r of asks) {
+    if (firstAsk.has(r.session_id)) continue;
+    const t = r.text.trim();
+    if (t && !FILLER.test(t)) firstAsk.set(r.session_id, t);
+  }
+  return detectHandoffs(
+    sessions.map((s) => ({
+      id: s.id,
+      agent: s.agent,
+      title: s.title,
+      startedAt: s.started_at,
+      updatedAt: s.updated_at,
+      firstAsk: firstAsk.get(s.id) ?? null,
+    })),
+  );
+}
+
+function loadMessages(store: Store, sessionId: string): Msg[] {
+  return (
+    store.db.prepare('SELECT seq, role, tool_name, text, failed FROM messages WHERE session_id = ? ORDER BY seq').all(sessionId) as {
+      seq: number;
+      role: Role;
+      tool_name: string | null;
+      text: string;
+      failed: number | null;
+    }[]
+  ).map((m) => ({ seq: m.seq, role: m.role, toolName: m.tool_name, text: m.text, failed: m.failed === null ? null : m.failed === 1 }));
+}
+
 // ---------------- 汇总 ----------------
 
 export interface SessionScore {
@@ -234,7 +345,7 @@ export interface SessionScore {
   startedAt: string | null;
   model: string | null;
   outcome: Outcome;
-  reasons: string[];
+  reasons: Reason[];
   handedOffTo: string | null;
   signals: SessionSignals;
   input: number;
@@ -323,56 +434,32 @@ export function buildScorecard(store: Store, opts: { days?: number; agent?: Agen
     .prepare(`SELECT s.id, s.agent, s.title, s.started_at, s.updated_at FROM sessions s WHERE ${where.join(' AND ')} ORDER BY s.started_at`)
     .all(...params) as { id: string; agent: AgentKind; title: string | null; started_at: string | null; updated_at: string | null }[];
 
-  const msgStmt = store.db.prepare('SELECT seq, role, tool_name, text, failed FROM messages WHERE session_id = ? ORDER BY seq');
   // 子 agent 的用量算进主会话：按「自己或父会话是它」汇总
   const useStmt = store.db.prepare(
     `SELECT u.model, SUM(u.input) AS input, SUM(u.output) AS output, SUM(u.cache_read) AS cache_read
      FROM session_usage u JOIN sessions s ON s.id = u.session_id
      WHERE s.id = ? OR s.parent_id = ? GROUP BY u.model ORDER BY SUM(u.output) DESC`,
   );
-
-  const prepared = sessions.map((s) => {
-    const messages = (
-      msgStmt.all(s.id) as { seq: number; role: Role; tool_name: string | null; text: string; failed: number | null }[]
-    ).map((m) => ({
-      seq: m.seq,
-      role: m.role,
-      toolName: m.tool_name,
-      text: m.text,
-      failed: m.failed === null ? null : m.failed === 1,
-    }));
-    const firstAsk = messages.find((m) => m.role === 'user' && m.text.trim() && !FILLER.test(m.text.trim()))?.text.trim() ?? null;
-    return { s, messages, firstAsk, signals: sessionSignals(messages) };
-  });
-
-  const handoffs = detectHandoffs(
-    prepared.map((p) => ({
-      id: p.s.id,
-      agent: p.s.agent,
-      title: p.s.title,
-      startedAt: p.s.started_at,
-      updatedAt: p.s.updated_at,
-      firstAsk: p.firstAsk,
-    })),
-  );
+  const handoffs = handoffMap(store);
 
   const scores: SessionScore[] = [];
-  for (const p of prepared) {
-    if (p.signals.turns === 0) continue;
-    const usage = useStmt.all(p.s.id, p.s.id) as { model: string; input: number; output: number; cache_read: number }[];
-    const handedOffTo = handoffs.get(p.s.id) ?? null;
-    const { outcome, reasons } = judge(p.signals, handedOffTo !== null);
+  for (const s of sessions) {
+    const signals = sessionSignals(loadMessages(store, s.id));
+    if (signals.turns === 0) continue;
+    const usage = useStmt.all(s.id, s.id) as { model: string; input: number; output: number; cache_read: number }[];
+    const handedOffTo = handoffs.get(s.id) ?? null;
+    const { outcome, reasons } = judge(signals, handedOffTo !== null);
     scores.push({
-      id: p.s.id,
-      agent: p.s.agent,
-      title: p.s.title,
-      startedAt: p.s.started_at,
+      id: s.id,
+      agent: s.agent,
+      title: s.title,
+      startedAt: s.started_at,
       // 一个会话里可能换过模型，以输出最多的那个为主
       model: usage[0]?.model ?? null,
       outcome,
       reasons,
       handedOffTo,
-      signals: p.signals,
+      signals,
       input: usage.reduce((n, u) => n + u.input, 0),
       output: usage.reduce((n, u) => n + u.output, 0),
       cacheRead: usage.reduce((n, u) => n + u.cache_read, 0),
@@ -390,4 +477,71 @@ export function buildScorecard(store: Store, opts: { days?: number; agent?: Agen
     ),
     handoffs: [...handoffs.keys()].filter((id) => scores.some((s) => s.id === id)).length,
   };
+}
+
+// ---------------- 复盘：单个会话卡在哪 ----------------
+
+export interface LinkedSession {
+  id: string;
+  agent: AgentKind;
+  title: string | null;
+}
+
+export interface Diagnosis {
+  id: string;
+  /** null：子 agent（成败跟着主会话），或者你一句话都没说 */
+  outcome: Outcome | null;
+  /** outcome 为 null 时说明原因 */
+  note: string | null;
+  reasons: Reason[];
+  signals: SessionSignals;
+  /** 时间线上的标记，按 seq 排序 */
+  marks: Mark[];
+  /** 时间线的范围：第一条和最后一条消息的 seq */
+  span: [number, number];
+  handedOffTo: LinkedSession | null;
+  /** 这个会话是接手别的 agent 做到一半的事 */
+  handedOffFrom: LinkedSession | null;
+}
+
+/** 单个会话的复盘：结论、每条理由出现在哪条消息、整个会话里出过哪些状况。找不到会话时返回 null */
+export function diagnoseSession(store: Store, id: string): Diagnosis | null {
+  const row = store.db.prepare('SELECT id, parent_id FROM sessions WHERE id = ?').get(id) as
+    | { id: string; parent_id: string | null }
+    | undefined;
+  if (!row) return null;
+  const messages = loadMessages(store, id);
+  const { signals, marks } = traceSession(messages);
+  const span: [number, number] = [messages[0]?.seq ?? 0, messages.at(-1)?.seq ?? 0];
+  const link = (sid: string | undefined): LinkedSession | null => {
+    if (!sid) return null;
+    return (store.db.prepare('SELECT id, agent, title FROM sessions WHERE id = ?').get(sid) as LinkedSession | undefined) ?? null;
+  };
+
+  const base = { id, signals, marks, span, reasons: [] as Reason[], handedOffTo: null, handedOffFrom: null };
+  if (row.parent_id) return { ...base, outcome: null, note: '这是主会话派出去干活的子 agent，成败跟着主会话算' };
+  if (signals.turns === 0) return { ...base, outcome: null, note: '这个会话里你没有说话，不参与成绩单' };
+
+  const handoffs = handoffMap(store);
+  const to = handoffs.get(id);
+  const from = [...handoffs].find(([, target]) => target === id)?.[0];
+  const { outcome, reasons } = judge(signals, to !== undefined);
+  return { ...base, outcome, note: null, reasons, handedOffTo: link(to), handedOffFrom: link(from) };
+}
+
+/**
+ * token 花在了哪类会话上。默认不含命中缓存的输入：缓存命中的价格通常只有正常输入的一成，
+ * 算进去会让长会话显得格外贵；withCache 为 true 时按输入 + 输出全算
+ */
+export function tokenShare(
+  sessions: Pick<SessionScore, 'outcome' | 'input' | 'output' | 'cacheRead'>[],
+  opts: { withCache?: boolean } = {},
+): Record<Outcome | 'total', number> {
+  const out = { smooth: 0, rework: 0, unresolved: 0, total: 0 };
+  for (const s of sessions) {
+    const n = s.input + s.output - (opts.withCache ? 0 : s.cacheRead);
+    out[s.outcome] += n;
+    out.total += n;
+  }
+  return out;
 }

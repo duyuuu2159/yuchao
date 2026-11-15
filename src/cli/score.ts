@@ -1,6 +1,6 @@
 // yuchao score：成绩单的命令行输出。
 import { agentLabel } from '../core/agents.ts';
-import { buildScorecard, OUTCOME_LABEL, type ScoreRow } from '../core/scorecard.ts';
+import { buildScorecard, OUTCOME_LABEL, type ScoreRow, tokenShare } from '../core/scorecard.ts';
 import type { Store } from '../core/store.ts';
 import type { AgentKind } from '../core/types.ts';
 import { bold, day, dim, tag } from './style.ts';
@@ -64,6 +64,14 @@ export function runScore(store: Store, flags: ScoreFlags) {
       `顺利 ${pct(by('smooth'), total)}，返工后完成 ${pct(by('rework'), total)}，没解决 ${pct(by('unresolved'), total)}` +
       (sc.handoffs ? `；其中 ${sc.handoffs} 次换了别的 agent 接着做` : ''),
   );
+  const share = tokenShare(sc.sessions);
+  if (share.total) {
+    console.log(
+      dim(
+        `token（不含缓存命中）花在：顺利的会话 ${pct(share.smooth, share.total)}，返工的 ${pct(share.rework, share.total)}，没解决的 ${pct(share.unresolved, share.total)}`,
+      ),
+    );
+  }
 
   table('按 agent', sc.byAgent);
   table(
@@ -78,7 +86,7 @@ export function runScore(store: Store, flags: ScoreFlags) {
       console.log(`\n${bold(OUTCOME_LABEL[outcome])}（${xs.length}）`);
       for (const s of xs.slice(-20).reverse()) {
         console.log(`  ${tag(s.agent)} ${s.title ?? '（无标题）'}  ${dim(day(s.startedAt))}`);
-        console.log(dim(`            ${s.reasons.join('；')}  yuchao show ${s.id}`));
+        console.log(dim(`            ${s.reasons.map((r) => r.text).join('；')}  yuchao show ${s.id}`));
       }
     }
   } else {
