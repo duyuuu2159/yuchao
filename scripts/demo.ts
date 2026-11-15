@@ -185,6 +185,76 @@ const STORIES: Story[] = [
     ],
   },
   {
+    // 长的返工会话：两次说不行、一次接口重试、中途两次执行失败，最后修好了。复盘时间线和「token 花在哪」靠它演示
+    agent: 'claude',
+    id: 'demo-blog-perf',
+    title: '博客：首屏太慢，Lighthouse 只有 52 分',
+    cwd: BLOG,
+    start: at(2, 20, 10),
+    turns: [
+      {
+        user: '博客首页太慢了，Lighthouse 性能只有 52 分，帮我优化一下首屏',
+        reply: '首屏主要卡在三张大图和一个同步加载的统计脚本。先把非首屏图片改成懒加载，统计脚本加上 defer。',
+        tools: [
+          edit(`${BLOG}\\src\\pages\\index.astro`, '<img src={post.cover}', '<img loading="lazy" src={post.cover}'),
+          bash('npm run build', 'built in 8.2s'),
+        ],
+      },
+      {
+        user: '跑一下 Lighthouse 看看分数',
+        reply: '68 分。剩下的大头是首屏那张 hero 图，原图 2.4 MB。',
+        tools: [bash('npx lighthouse http://localhost:4321 --only-categories=performance --quiet', 'Performance: 68  LCP 3.9 s')],
+      },
+      {
+        user: 'hero 图压一下，换成 webp',
+        reply: '用 sharp 转成了 webp，按屏幕宽度给三档：640、1280、1920。',
+        tools: [
+          failed(bash('node scripts/optimize-images.mjs', "Error: Cannot find module 'sharp'")),
+          bash(
+            'npm i -D sharp && node scripts/optimize-images.mjs',
+            'hero.jpg → hero-640.webp 38 KB, hero-1280.webp 96 KB, hero-1920.webp 171 KB',
+          ),
+        ],
+      },
+      {
+        user: '还是不行，手机上首屏的图是糊的',
+        reply: '手机屏幕是 3 倍密度，640 宽的图被放大了。我把 srcset 改成按密度挑图……',
+      },
+      {
+        user: 'Try again',
+        reply: 'srcset 改好了，sizes 写成 100vw，手机上会选 1280 宽的那张。',
+        tools: [
+          edit(
+            `${BLOG}\\src\\components\\Hero.astro`,
+            'srcset={small}',
+            'srcset={`${s640} 640w, ${s1280} 1280w, ${s1920} 1920w`} sizes="100vw"',
+          ),
+          bash('npm run build', 'built in 8.4s'),
+        ],
+      },
+      {
+        user: '还是一样糊，而且图片加载完页面会跳一下',
+        reply:
+          '跳动是因为 img 没写宽高，浏览器不知道要留多大位置，已经补上 width、height。糊是因为 Astro 的图片组件又压了一次，质量被设成了 50，改成 80。',
+        tools: [
+          edit(`${BLOG}\\astro.config.mjs`, 'quality: 50', 'quality: 80'),
+          failed(bash('npm test', 'FAIL tests/layout.test.ts  expected CLS < 0.1, got 0.18')),
+          edit(`${BLOG}\\src\\components\\Hero.astro`, '<img', '<img width={1280} height={640}'),
+          bash('npm test', 'PASS 12 tests'),
+        ],
+      },
+      {
+        user: '再测一次分数',
+        reply: '性能 94 分，LCP 1.4 秒，CLS 0.02。首屏图片从 2.4 MB 降到 96 KB。',
+        tools: [bash('npx lighthouse http://localhost:4321 --only-categories=performance --quiet', 'Performance: 94  LCP 1.4 s  CLS 0.02')],
+      },
+      {
+        user: '好了，可以了，谢谢',
+        reply: '不客气。改动都在 feat/perf 分支，合并前记得在真机上再看一眼。',
+      },
+    ],
+  },
+  {
     agent: 'workbuddy',
     id: 'demo-ledger-chart',
     model: 'hy4-free',
