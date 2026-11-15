@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { type Outcome, type Scorecard, type ScoreRow, scoreApi } from './api.ts';
+import { type Outcome, type Scorecard, type ScoreRow, type SessionScore, scoreApi } from './api.ts';
 import { when } from './format.ts';
+import { bigNumber } from './UsageSection.tsx';
 import { AgentBadge, Empty, ErrorPage, Icon, LoadingPage, PageHeader } from './ui.tsx';
 
 export const OUTCOME_LABEL: Record<Outcome, string> = { smooth: '顺利', rework: '返工后完成', unresolved: '没解决' };
@@ -16,12 +17,20 @@ export const tokens = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n 
  * 一根横条按比例分成三段：顺利、返工后完成、没解决。
  * 颜色只是辅助：每段的名字和比例都写在 title 里，表格里另有数字，图例在页面上方。
  */
-export function OutcomeBar({ row }: { row: Pick<ScoreRow, 'sessions' | 'smooth' | 'rework' | 'unresolved'> }) {
+export function OutcomeBar({
+  row,
+  unit = ' 个会话',
+  fmt = String,
+}: {
+  row: Pick<ScoreRow, 'sessions' | 'smooth' | 'rework' | 'unresolved'>;
+  unit?: string;
+  fmt?: (n: number) => string;
+}) {
   return (
     <div
       className="outcome-bar"
       role="img"
-      aria-label={OUTCOMES.map((o) => `${OUTCOME_LABEL[o]} ${pct(row[o], row.sessions)}%`).join('，')}
+      aria-label={OUTCOMES.map((o) => `${OUTCOME_LABEL[o]} ${share(row[o], row.sessions)}`).join('，')}
     >
       {OUTCOMES.map((o) =>
         row[o] ? (
@@ -29,11 +38,82 @@ export function OutcomeBar({ row }: { row: Pick<ScoreRow, 'sessions' | 'smooth' 
             key={o}
             className={'seg-' + o}
             style={{ flexGrow: row[o] }}
-            title={`${OUTCOME_LABEL[o]}：${row[o]} 个会话（${pct(row[o], row.sessions)}%）`}
+            title={`${OUTCOME_LABEL[o]}：${fmt(row[o])}${unit}（${share(row[o], row.sessions)}）`}
           />
         ) : null,
       )}
     </div>
+  );
+}
+
+/** 与 src/core/scorecard.ts 的 tokenShare 相同：默认不含命中缓存的输入 */
+function tokenShare(sessions: SessionScore[], opts: { withCache?: boolean } = {}): Record<Outcome | 'total', number> {
+  const out = { smooth: 0, rework: 0, unresolved: 0, total: 0 };
+  for (const s of sessions) {
+    const n = s.input + s.output - (opts.withCache ? 0 : s.cacheRead);
+    out[s.outcome] += n;
+    out.total += n;
+  }
+  return out;
+}
+
+/** 百分比；不到 1% 但不是 0 的保留一位小数，免得写成 0% */
+function share(a: number, b: number): string {
+  if (!b) return '0%';
+  const p = (a / b) * 100;
+  return p > 0 && p < 1 ? `${p.toFixed(1)}%` : `${Math.round(p)}%`;
+}
+
+/**
+ * token 花在哪：同一组会话，按个数分和按 token 分，两根条上下对照。
+ * 如果某一类结果的 token 占比明显高于它的会话占比，写成一句话放在上面
+ */
+function TokenShare({ sessions }: { sessions: SessionScore[] }) {
+  const n = { sessions: sessions.length, smooth: 0, rework: 0, unresolved: 0 };
+  const turns = { smooth: 0, rework: 0, unresolved: 0 };
+  for (const s of sessions) {
+    n[s.outcome]++;
+    turns[s.outcome] += s.signals.turns;
+  }
+  const t = tokenShare(sessions);
+  const all = tokenShare(sessions, { withCache: true });
+  if (!t.total) return null;
+  const tok = { sessions: t.total, smooth: t.smooth, rework: t.rework, unresolved: t.unresolved };
+  const lopsided = (['rework', 'unresolved'] as const)
+    .filter((o) => n[o] && t[o] / t.total >= (1.5 * n[o]) / n.sessions)
+    .sort((a, b) => t[b] - t[a])[0];
+  const avgTurns = (o: Outcome) => (n[o] ? Math.round(turns[o] / n[o]) : 0);
+  const legend = (row: typeof n) => OUTCOMES.map((o) => `${OUTCOME_LABEL[o]} ${share(row[o], row.sessions)}`).join(' · ');
+
+  return (
+    <section className="token-share">
+      <div className="score-head">
+        <h2 className="section-title">token 花在了哪类会话上</h2>
+      </div>
+      {lopsided && (
+        <p className="share-lead">
+          {OUTCOME_LABEL[lopsided]}的会话占 <b>{share(n[lopsided], n.sessions)}</b>，却花掉了 <b>{share(t[lopsided], t.total)}</b> 的 token
+        </p>
+      )}
+      <dl className="share-rows">
+        <dt>会话数</dt>
+        <dd>
+          <OutcomeBar row={n} />
+          <span className="meta">{legend(n)}</span>
+        </dd>
+        <dt>token</dt>
+        <dd>
+          <OutcomeBar row={tok} unit=" token" fmt={bigNumber} />
+          <span className="meta">{legend(tok)}</span>
+        </dd>
+      </dl>
+      <p className="meta">
+        token 不含命中缓存的输入（缓存命中通常只收一成的钱）；全算的话，返工的会话占 {share(all.rework, all.total)}。
+        {n.rework > 0 &&
+          avgTurns('rework') >= 1.5 * avgTurns('smooth') &&
+          ` 返工的会话平均你说了 ${avgTurns('rework')} 句，顺利的 ${avgTurns('smooth')} 句：会话每多一轮，之前的上下文都要再读一遍，拖得越长越贵。`}
+      </p>
+    </section>
   );
 }
 
@@ -191,6 +271,8 @@ export function ScoreView({ onOpen }: { onOpen: (sessionId: string, seq: number 
             </div>
           </section>
 
+          <TokenShare sessions={sc.sessions} />
+
           <div className="score-head">
             <h2 className="section-title">按 agent</h2>
             <OutcomeLegend />
@@ -229,14 +311,16 @@ export function ScoreView({ onOpen }: { onOpen: (sessionId: string, seq: number 
             <ul className="score-sessions">
               {listed.slice(0, 50).map((s) => (
                 <li key={s.id}>
-                  <button type="button" onClick={() => onOpen(s.id, null)}>
+                  <button type="button" onClick={() => onOpen(s.id, s.reasons.find((r) => r.seq !== null)?.seq ?? null)}>
                     <span className="row1">
                       <AgentBadge agent={s.agent} />
                       <b>{s.title ?? '（无标题）'}</b>
                       <span className="meta">{when(s.startedAt)}</span>
                     </span>
                     <span className="row2 meta">
-                      {s.reasons.length ? s.reasons.join('；') : `你说了 ${s.signals.turns} 句，agent 调用了 ${s.signals.toolCalls} 次工具`}
+                      {s.reasons.length
+                        ? s.reasons.map((r) => r.text).join('；')
+                        : `你说了 ${s.signals.turns} 句，agent 调用了 ${s.signals.toolCalls} 次工具`}
                       {s.model && ` · ${s.model}`}
                       {s.output > 0 && ` · 输出 ${tokens(s.output)} token`}
                     </span>

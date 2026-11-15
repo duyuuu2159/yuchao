@@ -293,6 +293,12 @@ export const handoffApi = {
 
 export type Outcome = 'smooth' | 'rework' | 'unresolved';
 
+export interface Reason {
+  text: string;
+  /** 证据所在的消息；证据在另一个会话里（接力）时为 null */
+  seq: number | null;
+}
+
 export interface SessionScore {
   id: string;
   agent: Agent;
@@ -300,7 +306,7 @@ export interface SessionScore {
   startedAt: string | null;
   model: string | null;
   outcome: Outcome;
-  reasons: string[];
+  reasons: Reason[];
   handedOffTo: string | null;
   signals: { turns: number; toolCalls: number; errors: number; retries: number; reAsks: number; negatives: number };
   input: number;
@@ -335,6 +341,32 @@ export interface Scorecard {
 
 export const scoreApi = {
   get: (days?: number, raw?: boolean) => get<Scorecard>(`/api/scorecard?${qs({ days: days ? String(days) : undefined, raw: flag(raw) })}`),
+};
+
+// ---------------- 复盘 ----------------
+
+export type MarkKind = 'ask' | 'positive' | 'negative' | 'reask' | 'retry' | 'error';
+
+export interface LinkedSession {
+  id: string;
+  agent: Agent;
+  title: string | null;
+}
+
+export interface Diagnosis {
+  id: string;
+  outcome: Outcome | null;
+  note: string | null;
+  reasons: Reason[];
+  signals: SessionScore['signals'] & { at: { stuckFrom: number | null } };
+  marks: { seq: number; kind: MarkKind }[];
+  span: [number, number];
+  handedOffTo: LinkedSession | null;
+  handedOffFrom: LinkedSession | null;
+}
+
+export const diagnosisApi = {
+  get: (id: string, raw?: boolean) => get<Diagnosis>(`/api/diagnosis/${encodeURIComponent(id)}?${qs({ raw: flag(raw) })}`),
 };
 
 // ---------------- 用量 ----------------

@@ -3,6 +3,7 @@ import { AGENT_LABEL, AGENTS, type Agent, api, type Message, type SearchHit, typ
 import { when } from './format.ts';
 import { HandoffPanel } from './HandoffPanel.tsx';
 import { highlight, Markdown } from './Markdown.tsx';
+import { SessionRetro } from './SessionRetro.tsx';
 import { AgentBadge, Empty, Icon, Skeleton } from './ui.tsx';
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -286,6 +287,14 @@ function SessionView({
       </header>
 
       <div className="reader-inner reader-sub">
+        <SessionRetro
+          id={s.id}
+          raw={raw}
+          messages={s.messages}
+          focusSeq={focusSeq}
+          onJump={(seq) => onOpen(s.id, seq)}
+          onOpenSession={(sid) => onOpen(sid)}
+        />
         <details className="source">
           <summary>来源和工作目录</summary>
           {s.cwd && <div className="mono">工作目录 {s.cwd}</div>}

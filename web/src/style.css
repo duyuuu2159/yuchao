@@ -2688,3 +2688,283 @@ button.version:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ───────── 成绩单：token 花在哪 ───────── */
+
+.token-share {
+  margin: 0 0 var(--s6);
+}
+.share-lead {
+  margin: 0 0 var(--s3);
+  font-size: var(--f-lg);
+  color: var(--text);
+}
+.share-lead b {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.share-rows {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--s2) var(--s3);
+  align-items: center;
+  margin: 0 0 var(--s2);
+  max-width: 720px;
+}
+.share-rows dt {
+  font-size: var(--f-sm);
+  color: var(--muted);
+}
+.share-rows dd {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.share-rows .outcome-bar {
+  height: 14px;
+}
+.token-share > .meta {
+  max-width: 720px;
+}
+
+/* ───────── 会话复盘：两行时间线 ───────── */
+
+.retro {
+  margin-bottom: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.retro-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.retro-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--text);
+}
+.retro-outcome i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.retro-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: var(--f-sm);
+}
+.retro-reason:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.retro-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--s2);
+}
+.retro-links .chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace {
+  margin-top: var(--s3);
+}
+.trace-lane {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  margin-bottom: 4px;
+}
+.trace-who {
+  padding-right: var(--s2);
+  text-align: right;
+  font-size: var(--f-xs);
+  color: var(--muted);
+}
+.trace-track {
+  position: relative;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--sunken);
+}
+/* 收尾卡住的那一段：之后再没好起来 */
+.trace-stuck {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-left: 2px solid var(--err);
+  border-radius: 0 4px 4px 0;
+  background: var(--del-bg);
+  pointer-events: none;
+}
+.trace-stuck span {
+  position: absolute;
+  top: -17px;
+  left: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--err);
+  white-space: nowrap;
+}
+/* 当前定位到的消息 */
+.trace-now {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* 标记：按钮比图形大，方便点中；形状 + 颜色 + 图例文字三重区分，不只靠颜色 */
+.tm {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+.tm i {
+  display: block;
+  transition: transform 0.12s ease;
+}
+.tm:hover i,
+.tm.on i {
+  transform: scale(1.45);
+}
+.tm-ask i {
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--muted);
+  opacity: 0.6;
+}
+.tm-negative i {
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--warn);
+}
+.tm-reask i {
+  width: 8px;
+  height: 8px;
+  border-radius: 1.5px;
+  background: var(--warn);
+  transform: rotate(45deg);
+}
+.tm-reask:hover i,
+.tm-reask.on i {
+  transform: rotate(45deg) scale(1.45);
+}
+.tm-retry i {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+}
+.tm-positive i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.tm-error i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--err);
+  box-shadow: 0 0 0 1.5px var(--glass-strong);
+}
+.trace-tip {
+  position: absolute;
+  z-index: 5;
+  bottom: calc(100% + 6px);
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  max-width: min(340px, 70vw);
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--f-xs);
+  color: var(--body);
+  transform: translateX(-12px);
+  pointer-events: none;
+}
+.trace-tip.left {
+  transform: translateX(calc(-100% + 12px));
+}
+.trace-tip b {
+  color: var(--text);
+}
+.trace-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 44px;
+  font-size: var(--f-xs);
+  color: var(--muted);
+}
+.trace-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--s2);
+}
+.trace-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--body);
+  font-size: var(--f-xs);
+}
+.trace-legend button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.trace-legend b {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.trace-legend .tm {
+  position: static;
+  display: inline-grid;
+  height: 18px;
+  transform: none;
+}
+.tm-stuck-key {
+  width: 14px;
+  height: 10px;
+  border-left: 2px solid var(--err);
+  background: var(--del-bg);
+}
