@@ -1,6 +1,6 @@
 {
   "name": "yuchao",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "鱼巢 AgentNest：把多个 AI agent 的本地会话管在一起的工作台",
   "type": "module",
   "license": "MIT",

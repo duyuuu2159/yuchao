@@ -1,4 +1,5 @@
 import { type Ref, useEffect, useMemo, useRef, useState } from 'react';
+import { AcceptanceDialog, type AcceptanceDraft, AcceptancePanel, useAcceptanceCard } from './AcceptancePanel.tsx';
 import { AGENT_LABEL, AGENTS, type Agent, api, type Message, type SearchHit, type SessionDetail, type SessionRow } from './api.ts';
 import { when } from './format.ts';
 import { HandoffPanel } from './HandoffPanel.tsx';
@@ -55,6 +56,7 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const acceptance = useAcceptanceCard(reloadKey);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey 是「更新索引后重新加载」的触发计数器
   useEffect(() => {
@@ -186,7 +188,16 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
 
       <main className="reader">
         {openId ? (
-          <SessionView id={openId} raw={raw} focusSeq={focusSeq} terms={terms} onOpen={onOpen} />
+          <SessionView
+            key={openId}
+            id={openId}
+            raw={raw}
+            reloadKey={reloadKey}
+            focusSeq={focusSeq}
+            terms={terms}
+            onOpen={onOpen}
+            acceptance={acceptance}
+          />
         ) : (
           <Empty icon="chat" title="选一个会话开始阅读">
             或者按 <kbd>/</kbd> 搜索。鱼巢只读取本机的会话文件，不会修改它们，也不会上传任何数据。
@@ -200,27 +211,43 @@ export function SessionsView({ raw, reloadKey, openId, focusSeq, onOpen }: Props
 function SessionView({
   id,
   raw,
+  reloadKey,
   focusSeq,
   terms,
   onOpen,
+  acceptance,
 }: {
   id: string;
   raw: boolean;
+  reloadKey: number;
   focusSeq: number | null;
   terms: string[];
   onOpen: Props['onOpen'];
+  acceptance: ReturnType<typeof useAcceptanceCard>;
 }) {
   const [s, setS] = useState<SessionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTools, setShowTools] = useState(false);
   const [relay, setRelay] = useState(false);
+  const [draft, setDraft] = useState<AcceptanceDraft | null>(null);
   const focusRef = useRef<HTMLDivElement>(null);
+  const acceptanceHeading = useRef<HTMLHeadingElement>(null);
 
+  const evidenceSeqs = useMemo(() => new Set(s?.acceptanceEvidenceSeqs), [s]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 索引更新后也要刷新工具输出和可关联的证据
   useEffect(() => {
     setS(null);
     setError(null);
-    api.session(id, raw).then(setS, (e) => setError(e.message));
-  }, [id, raw]);
+    let stale = false;
+    api.session(id, raw).then(
+      (next) => !stale && setS(next),
+      (e) => !stale && setError(e.message),
+    );
+    return () => {
+      stale = true;
+    };
+  }, [id, raw, reloadKey]);
 
   // 从搜索结果点进来时，命中的是工具调用就自动展开工具
   useEffect(() => {
@@ -250,6 +277,32 @@ function SessionView({
   const visible = s.messages.filter((m) => showTools || m.role === 'user' || m.role === 'assistant');
   const toolCount = s.messages.filter((m) => m.role === 'tool_call').length;
   const hidden = s.messages.length - s.messages.filter((m) => m.role === 'user' || m.role === 'assistant').length;
+  const activeRequirement = acceptance.card?.revisions[0];
+
+  function openSource(sessionId: string, seq: number) {
+    if (sessionId === id && seq === focusSeq) {
+      if (focusRef.current) focusRef.current.scrollIntoView({ block: 'center' });
+      else setShowTools(true);
+      return;
+    }
+    onOpen(sessionId, seq);
+  }
+
+  function review(m: Message): AcceptanceDraft | null {
+    if (!acceptance.card || acceptance.error) return null;
+    const preview = m.text.length > 400 ? `${m.text.slice(0, 400)}…` : m.text;
+    const source = { sessionId: id, seq: m.seq, preview };
+    if (m.role === 'user' && m.text.trim()) {
+      if (activeRequirement?.source.sessionId === id && activeRequirement.source.seq === m.seq && activeRequirement.source.available)
+        return null;
+      return { ...source, kind: 'requirement', expectedRevisionId: activeRequirement?.id ?? null };
+    }
+    if (m.role === 'tool_result' && activeRequirement && evidenceSeqs.has(m.seq)) {
+      const linked = activeRequirement.evidence.find((e) => e.sessionId === id && e.seq === m.seq);
+      return { ...source, kind: 'evidence', revisionId: activeRequirement.id, covers: linked?.covers ?? false };
+    }
+    return null;
+  }
 
   return (
     <article>
@@ -287,6 +340,7 @@ function SessionView({
       </header>
 
       <div className="reader-inner reader-sub">
+        <AcceptancePanel state={acceptance} onOpen={openSource} headingRef={acceptanceHeading} />
         <SessionRetro
           id={s.id}
           raw={raw}
@@ -318,19 +372,58 @@ function SessionView({
       </div>
 
       {relay && <HandoffPanel sessionId={s.id} agent={s.agent} raw={raw} onClose={() => setRelay(false)} />}
+      {draft && (
+        <AcceptanceDialog
+          draft={draft}
+          onClose={() => setDraft(null)}
+          onError={acceptance.refresh}
+          onSaved={(card) => {
+            acceptance.update(card);
+            setDraft(null);
+            requestAnimationFrame(() => acceptanceHeading.current?.focus());
+          }}
+        />
+      )}
 
       <div className="reader-inner messages">
         {visible.length === 0 && <Empty title="这个会话里没有对话内容">只有工具调用或注入的上下文，勾选上面的选项可以查看。</Empty>}
-        {visible.map((m) => (
-          <MessageView key={m.seq} m={m} focused={m.seq === focusSeq} terms={terms} ref={m.seq === focusSeq ? focusRef : undefined} />
-        ))}
+        {visible.map((m) => {
+          const action = review(m);
+          return (
+            <MessageView
+              key={m.seq}
+              m={m}
+              focused={m.seq === focusSeq}
+              terms={terms}
+              ref={m.seq === focusSeq ? focusRef : undefined}
+              action={action && { label: action.kind === 'requirement' ? '设为验收要求' : '挂为验收证据', run: () => setDraft(action) }}
+            />
+          );
+        })}
       </div>
     </article>
   );
 }
 
-function MessageView({ m, focused, terms, ref }: { m: Message; focused: boolean; terms: string[]; ref?: Ref<HTMLDivElement> }) {
+function MessageView({
+  m,
+  focused,
+  terms,
+  ref,
+  action,
+}: {
+  m: Message;
+  focused: boolean;
+  terms: string[];
+  ref?: Ref<HTMLDivElement>;
+  action: { label: string; run: () => void } | null;
+}) {
   const cls = 'msg ' + m.role + (focused ? ' focused' : '');
+  const actionButton = action && (
+    <button type="button" className="text-link accept-message-action" onClick={action.run}>
+      {action.label}
+    </button>
+  );
   if (m.role === 'user' || m.role === 'assistant') {
     return (
       <div className={cls} ref={ref}>
@@ -338,6 +431,7 @@ function MessageView({ m, focused, terms, ref }: { m: Message; focused: boolean;
           {m.role === 'user' ? '你' : 'agent'} <span className="ts">{when(m.ts)}</span>
         </div>
         <Markdown text={m.text} terms={focused ? terms : []} />
+        {actionButton}
       </div>
     );
   }
@@ -355,6 +449,7 @@ function MessageView({ m, focused, terms, ref }: { m: Message; focused: boolean;
         </summary>
         <pre>{focused ? highlight(m.text, terms) : m.text}</pre>
       </details>
+      {actionButton}
     </div>
   );
 }

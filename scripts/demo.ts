@@ -8,7 +8,7 @@
 // 画像用一个本地的假模型接口生成（不联网、不花钱），只为了演示画像页长什么样。
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -19,8 +19,7 @@ import { zstdCompressSync } from 'node:zlib';
 const { values } = parseArgs({ options: { 'no-serve': { type: 'boolean', default: false }, port: { type: 'string', default: '4318' } } });
 
 const ROOT = join(import.meta.dirname, '..');
-const HOME = join(tmpdir(), 'yuchao-demo');
-rmSync(HOME, { recursive: true, force: true });
+const HOME = mkdtempSync(join(tmpdir(), 'yuchao-demo-'));
 
 const write = (path: string, content: string | Buffer) => {
   mkdirSync(dirname(path), { recursive: true });
@@ -88,6 +87,41 @@ const THESIS = 'C:\\code\\thesis-analysis';
 const CLI = 'C:\\code\\notes-cli';
 
 const STORIES: Story[] = [
+  // 接力验收单：旧版本全量通过，不等于新要求已经验过。
+  {
+    agent: 'claude',
+    id: 'demo-acceptance-claude',
+    title: '接力验收演示 · Claude：导出全部记录',
+    cwd: LEDGER,
+    start: at(0, 12, 0),
+    turns: [
+      {
+        user: '验收要求：把全部记录导出为 CSV。',
+        reply: '全量导出已实现，当时的 37 项测试全部通过。',
+        tools: [bash('npm test', 'ℹ tests 37\nℹ pass 37\nℹ fail 0')],
+      },
+      { user: '更改验收要求：只导出失败记录，成功记录不能出现在 CSV 中。', reply: '记下了，交给下一位继续做。' },
+    ],
+  },
+  {
+    agent: 'codex',
+    id: 'demo-acceptance-codex',
+    title: '接力验收演示 · Codex：只导出失败记录',
+    cwd: LEDGER,
+    start: at(0, 13, 0),
+    turns: [
+      {
+        user: '接着做 CSV 导出，先确认 CSV 格式。',
+        reply: 'CSV 格式的 2 个用例通过，但这还不能证明成功记录已被排除。',
+        tools: [bash('node --test test/csv-format.test.ts', 'ℹ tests 2\nℹ pass 2\nℹ fail 0')],
+      },
+      {
+        user: '再专门验一次成功记录有没有被排除。',
+        reply: '已运行失败记录筛选测试，成功记录未出现在导出中。',
+        tools: [bash('node --test test/csv-failed-only.test.ts', 'ℹ tests 1\nℹ pass 1\nℹ fail 0')],
+      },
+    ],
+  },
   // ---------------- 博客：上线后 502 ----------------
   {
     agent: 'claude',

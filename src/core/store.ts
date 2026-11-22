@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { AGENTS, adapter } from './agents.ts';
 import { redact } from './scan.ts';
 import { discover, type SourceDirs, type SourceFile } from './sources.ts';
-import type { AgentKind, Role, Session } from './types.ts';
+import type { AgentKind, Message, Role, Session } from './types.ts';
 
 /** 解析器或表结构有变化时加 1，已有的索引会在下次打开时清空重建 */
 export const PARSER_VERSION = 10;
@@ -79,6 +79,24 @@ CREATE TABLE IF NOT EXISTS scan_ignores (
   fingerprint TEXT PRIMARY KEY,
   note        TEXT NOT NULL DEFAULT '',
   created_at  TEXT NOT NULL
+);
+-- 手动验收记录独立于可重建的会话索引；只存定位和指纹，不复制会话内容。
+CREATE TABLE IF NOT EXISTS acceptance_revisions (
+  id          INTEGER PRIMARY KEY,
+  session_id  TEXT NOT NULL,
+  seq         INTEGER NOT NULL,
+  agent       TEXT NOT NULL,
+  fingerprint TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS acceptance_evidence (
+  id          INTEGER PRIMARY KEY,
+  revision_id INTEGER NOT NULL REFERENCES acceptance_revisions(id),
+  session_id  TEXT NOT NULL,
+  seq         INTEGER NOT NULL,
+  agent       TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  covers      INTEGER NOT NULL CHECK (covers IN (0, 1)),
+  UNIQUE (revision_id, session_id, seq)
 );
 `;
 
@@ -427,9 +445,10 @@ export class Store {
   getSession(id: string) {
     const row = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as any;
     if (!row) return null;
-    const messages = this.db
-      .prepare('SELECT seq, ts, role, tool_name AS toolName, text FROM messages WHERE session_id = ? ORDER BY seq')
-      .all(id);
+    const rows = this.db
+      .prepare('SELECT seq, ts, role, tool_name AS toolName, text, failed FROM messages WHERE session_id = ? ORDER BY seq')
+      .all(id) as unknown as (Omit<Message, 'failed'> & { failed: 0 | 1 | null })[];
+    const messages = rows.map(({ failed, ...message }): Message => ({ ...message, failed: failed === null ? null : failed === 1 }));
     const children = (this.db.prepare('SELECT * FROM sessions WHERE parent_id = ? ORDER BY started_at').all(id) as any[]).map(toSessionRow);
     return { ...toSessionRow(row), sourcePath: row.source_path as string, messages, children };
   }

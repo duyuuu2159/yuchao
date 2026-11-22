@@ -51,88 +51,48 @@ export function OverviewView({ reloadKey, go }: { reloadKey: number; go: (view: 
   const [relayOpen, setRelayOpen] = useState(false);
 
   return (
-    <div className="page overview">
-      <Masthead stats={stats} />
-      <section className="hero">
-        <div className="hero-top">
-          <h1>
-            把每个 agent，
-            <br />
-            <span className="grad">都收进一个巢</span>
-            <span className="dot">。</span>
-          </h1>
-          <TokenTotal stats={stats} />
+    <div className="page overview workbench">
+      <header className="workbench-head">
+        <div>
+          <h1>工作台</h1>
+          <p className="meta">直接查看本机已索引的会话和运行情况。</p>
         </div>
-        <div className="hero-cols">
-          <div className="hero-col">
-            <span className="label">卷首语</span>
-            <Editorial stats={stats} scan={scan} />
-          </div>
-          <div className="hero-col">
-            <span className="label">本期目录</span>
-            <ol className="toc">
-              {TOC.map(([v, name], i) => (
-                <li key={v}>
-                  <a href={'#/' + v}>
-                    <em>{String(i + 1).padStart(2, '0')}</em>
-                    {name}
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div className="hero-col">
-            <span className="label">从这里开始</span>
-            {relay instanceof Error || relay === null ? (
-              <p className="meta">还没有可以接力的会话。</p>
-            ) : !relay ? (
-              <Skeleton lines={2} />
-            ) : (
-              <>
-                <button type="button" className="btn cta" onClick={() => setRelayOpen(true)}>
-                  <Icon name="relay" /> 接力上次的工作
-                </button>
-                <p className="meta relay-hint">
-                  上次在 {AGENT_LABEL[relay.facts.agent]} 里：{relay.facts.title}
-                </p>
-              </>
-            )}
-            <a className="text-link" href="#/sessions">
-              翻翻所有会话 <Icon name="arrow" size={14} />
+        <div className="workbench-action">
+          {relay && !(relay instanceof Error) ? (
+            <button type="button" className="btn cta" onClick={() => setRelayOpen(true)} title={relay.facts.title ?? undefined}>
+              <Icon name="relay" size={16} /> 接力上次的工作
+            </button>
+          ) : (
+            <a className="btn" href="#/sessions">
+              <Icon name="chat" size={16} /> 浏览会话
             </a>
-          </div>
+          )}
         </div>
-      </section>
+      </header>
       {relayOpen && relay && !(relay instanceof Error) && (
         <HandoffPanel sessionId={relay.facts.sessionId} agent={relay.facts.agent} raw={false} onClose={() => setRelayOpen(false)} />
       )}
 
-      <SectionLabel no="01" name="此刻" />
       <Numbers stats={stats} />
-      <div className="cards">
-        <ScanCard scan={scan} go={go} />
-        <ConfigCard configs={configs} go={go} />
-        <ServerCard server={server} go={go} />
-        <ScoreCard score={score} go={go} />
+      <div className="workbench-board">
+        <div className="workbench-activity">
+          <Recent sessions={recent} go={go} />
+          <section className="workbench-usage" aria-labelledby="workbench-usage-heading">
+            <h2 id="workbench-usage-heading">近期用量</h2>
+            <UsageSection reloadKey={reloadKey} onOpen={(id) => go('sessions', id)} />
+          </section>
+        </div>
+        <aside className="workbench-aside" aria-label="本机状态">
+          <TokenTotal stats={stats} />
+          <ScanCard scan={scan} go={go} />
+          <ConfigCard configs={configs} go={go} />
+          <ServerCard server={server} go={go} />
+          <ScoreCard score={score} go={go} />
+        </aside>
       </div>
-      <SectionLabel no="02" name="用量" />
-      <UsageSection reloadKey={reloadKey} onOpen={(id) => go('sessions', id)} />
-      <SectionLabel no="03" name="最近" />
-      <Recent sessions={recent} go={go} />
     </div>
   );
 }
-
-const TOC: [View, string][] = [
-  ['sessions', '翻会话'],
-  ['score', '看成绩'],
-  ['scan', '查泄露'],
-  ['profile', '看画像'],
-  ['config', '管配置'],
-  ['server', '看服务器'],
-];
-
-const WEEK = '日一二三四五六';
 
 /** 大数字写成「亿」「万」：36.5 亿比 3,650,000,000 好读 */
 export function bigNumber(n: number): { value: string; unit: string } {
@@ -146,35 +106,47 @@ export function bigNumber(n: number): { value: string; unit: string } {
  * 段的颜色是各 agent 的识别色，名字和占比都写在下面，不靠颜色读。
  */
 function TokenTotal({ stats }: { stats: Stats | Error | undefined }) {
-  if (!stats || stats instanceof Error) return <div className="token-total" aria-hidden="true" />;
+  if (!stats || stats instanceof Error) {
+    return (
+      <section className="token-total">
+        <h2>本机用量</h2>
+        {stats instanceof Error ? <p className="err">{stats.message}</p> : <Skeleton lines={3} />}
+      </section>
+    );
+  }
   const { total, byAgent, since } = stats.usage;
   const all = total.input + total.output;
-  if (!all) return <div className="token-total" aria-hidden="true" />;
   const big = bigNumber(all);
-  const share = (a: { input: number; output: number }) => ((a.input + a.output) / all) * 100;
+  const share = (a: { input: number; output: number }) => (all ? ((a.input + a.output) / all) * 100 : 0);
   const cache = total.input ? Math.round((total.cacheRead / total.input) * 100) : 0;
   return (
-    <div className="token-total">
-      <span className="label">本机累计消耗</span>
+    <section className="token-total">
+      <h2>本机用量</h2>
       <p className="token-big">
         <b>{big.value}</b>
         <span>{big.unit} token</span>
       </p>
-      <div className="token-bar" role="img" aria-label={byAgent.map((a) => `${AGENT_LABEL[a.agent]} ${Math.round(share(a))}%`).join('，')}>
-        {byAgent.map((a) => (
-          <span
-            key={a.agent}
-            className={'a-' + a.agent}
-            style={{ flexGrow: a.input + a.output }}
-            title={`${AGENT_LABEL[a.agent]}：${bigNumber(a.input + a.output).value}${bigNumber(a.input + a.output).unit} token`}
-          />
-        ))}
-      </div>
+      {all > 0 && (
+        <div
+          className="token-bar"
+          role="img"
+          aria-label={byAgent.map((a) => `${AGENT_LABEL[a.agent]} ${Math.round(share(a))}%`).join('，')}
+        >
+          {byAgent.map((a) => (
+            <span
+              key={a.agent}
+              className={'a-' + a.agent}
+              style={{ flexGrow: a.input + a.output }}
+              title={`${AGENT_LABEL[a.agent]}：${bigNumber(a.input + a.output).value}${bigNumber(a.input + a.output).unit} token`}
+            />
+          ))}
+        </div>
+      )}
       <ul className="token-legend">
         {byAgent.map((a) => (
           <li key={a.agent}>
             <i className={'a-' + a.agent} />
-            {AGENT_LABEL[a.agent]} <b>{share(a) < 1 ? '<1' : Math.round(share(a))}%</b>
+            {AGENT_LABEL[a.agent]} <b>{share(a) > 0 && share(a) < 1 ? '<1' : Math.round(share(a))}%</b>
           </li>
         ))}
       </ul>
@@ -183,49 +155,7 @@ function TokenTotal({ stats }: { stats: Stats | Error | undefined }) {
         <br />
         输入里 {cache}% 命中缓存{since && `，从 ${new Date(since).getMonth() + 1} 月 ${new Date(since).getDate()} 日起`}
       </p>
-    </div>
-  );
-}
-
-/** 刊头：和个人网站一样，把这一天当成杂志的一期，期数是记录开始以来的第几天 */
-function Masthead({ stats }: { stats: Stats | Error | undefined }) {
-  const now = new Date();
-  const first = stats && !(stats instanceof Error) && stats.range.first ? new Date(stats.range.first) : null;
-  const issue = first ? Math.floor((now.getTime() - first.getTime()) / 86400000) + 1 : null;
-  return (
-    <div className="masthead">
-      <span>
-        <b>鱼巢</b> · 一本关于你和 AI 的本地杂志
-      </span>
-      <span>
-        {issue !== null && `第 ${issue} 期 · `}
-        {now.getFullYear()}.{now.getMonth() + 1}.{now.getDate()} · 星期{WEEK[now.getDay()]}
-      </span>
-    </div>
-  );
-}
-
-/** 卷首语：用今天的真实数字写一句话，不是固定文案 */
-function Editorial({ stats, scan }: { stats: Stats | Error | undefined; scan: AuditResult | Error | undefined }) {
-  if (!stats || stats instanceof Error) return <Skeleton lines={2} />;
-  const agents = stats.sessions.filter((s) => s.n).length;
-  const you = stats.messages.find((m) => m.role === 'user')?.n ?? 0;
-  const high = scan && !(scan instanceof Error) ? scan.findings.filter((f) => f.severity === 'high').length : null;
-  return (
-    <p className="editorial">
-      你和 {agents} 个 agent 一共说了 {n(you)} 句话。
-      {high === null ? '' : high > 0 ? `其中藏着 ${high} 个高风险的秘密，记得去换掉。` : '没有发现泄露的秘密，很好。'}
-    </p>
-  );
-}
-
-function SectionLabel({ no, name }: { no: string; name: string }) {
-  return (
-    <h2 className="section-label">
-      <span className="kicker">
-        {no} · {name}
-      </span>
-    </h2>
+    </section>
   );
 }
 
@@ -239,11 +169,10 @@ function Numbers({ stats }: { stats: Stats | Error | undefined }) {
       ? Math.max(1, Math.round((Date.parse(stats.range.last) - Date.parse(stats.range.first)) / 86400000))
       : 0;
   const items: [string, string, string?][] = [
-    [n(sessions), '个会话', `来自 ${stats.sessions.filter((s) => s.n).length} 个 agent，含子 agent`],
-    [n(role('user')), '条你写的消息'],
-    [n(role('assistant')), '条 agent 回复'],
-    [n(role('tool_call')), '次工具调用'],
-    [n(days), '天的记录', stats.range.first ? `从 ${when(stats.range.first)} 起` : undefined],
+    [n(sessions), '会话', '含子 agent'],
+    [n(role('user')), '用户消息', `${n(role('assistant'))} 条 agent 回复`],
+    [n(role('tool_call')), '工具调用'],
+    [n(stats.sessions.filter((s) => s.n).length), '已收录 Agent', `共 ${n(days)} 天记录`],
   ];
   return (
     <dl className="numbers">
@@ -433,6 +362,12 @@ function ScoreCard({ score, go }: { score: Scorecard | Error | undefined } & Go)
 function Recent({ sessions, go }: { sessions: SessionRow[] | Error | undefined } & Go) {
   return (
     <section className="recent">
+      <header className="workbench-section-head">
+        <h2>最近会话</h2>
+        <a href="#/sessions">
+          全部会话 <Icon name="arrow" size={14} />
+        </a>
+      </header>
       {sessions instanceof Error ? (
         <p className="err">{sessions.message}</p>
       ) : !sessions ? (
@@ -440,17 +375,24 @@ function Recent({ sessions, go }: { sessions: SessionRow[] | Error | undefined }
       ) : sessions.length === 0 ? (
         <p className="meta">还没有数据。点左下角的「更新索引」，读取本机各个 agent 的会话。</p>
       ) : (
-        <ul>
-          {sessions.slice(0, 6).map((s) => (
-            <li key={s.id}>
-              <button type="button" onClick={() => go('sessions', s.id)}>
-                <span className="title">{s.title ?? '（无标题）'}</span>
-                <AgentBadge agent={s.agent} />
-                <span className="meta">{when(s.updatedAt)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="workbench-session-table">
+          <div className="workbench-table-label" aria-hidden="true">
+            <span>会话标题</span>
+            <span>Agent</span>
+            <span>更新时间</span>
+          </div>
+          <ul>
+            {sessions.slice(0, 6).map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => go('sessions', s.id)}>
+                  <span className="title">{s.title ?? '（无标题）'}</span>
+                  <AgentBadge agent={s.agent} />
+                  <span className="meta">{when(s.updatedAt)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

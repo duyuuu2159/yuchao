@@ -2,6 +2,13 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
+import {
+  AcceptanceError,
+  acceptanceDocument,
+  acceptanceEvidenceSeqs,
+  linkAcceptanceEvidence,
+  setAcceptanceRequirement,
+} from '../core/acceptance.ts';
 import { AGENTS, isAgentKind } from '../core/agents.ts';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
 import { type Claim, claimsReport } from '../core/claims.ts';
@@ -36,6 +43,35 @@ function json(res: ServerResponse, status: number, body: unknown) {
 
 function agentParam(v: string | null): AgentKind | undefined {
   return isAgentKind(v) ? v : undefined;
+}
+
+/** 验收单只接收小型 JSON 和消息定位，不接受客户端提交的命令或证据正文。 */
+async function acceptanceBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+    throw new AcceptanceError(415, '请求必须是 JSON');
+  }
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+    bytes += chunk.length;
+    if (bytes > 4096) {
+      req.resume();
+      throw new AcceptanceError(413, '请求内容太长');
+    }
+    chunks.push(chunk);
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw new AcceptanceError(400, '无法解析 JSON 请求');
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AcceptanceError(400, '请求必须是 JSON 对象');
+  return body as Record<string, unknown>;
+}
+
+function validId(value: unknown, min = 1): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
 }
 
 /**
@@ -108,6 +144,24 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
     try {
       if (path === '/api/stats' && req.method === 'GET') return json(res, 200, store.stats());
 
+      if (path === '/api/acceptance' && req.method === 'GET') return json(res, 200, acceptanceDocument(store, raw));
+      if (req.method === 'POST' && (path === '/api/acceptance/requirement' || path === '/api/acceptance/evidence')) {
+        const { sessionId, seq, expectedRevisionId, revisionId, covers } = await acceptanceBody(req);
+        if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 512 || !validId(seq, 0)) {
+          return json(res, 400, { error: '消息定位无效' });
+        }
+        // 批量建索引用的是同一 SQLite 连接；不能把用户的手动标记夹进索引事务，和它一起回滚。
+        if (indexing) return json(res, 409, { error: '索引更新中，请完成后再试' });
+        if (path === '/api/acceptance/requirement') {
+          if (expectedRevisionId !== null && !validId(expectedRevisionId)) return json(res, 400, { error: '当前要求版本无效' });
+          setAcceptanceRequirement(store, sessionId, seq, expectedRevisionId);
+        } else {
+          if (!validId(revisionId) || typeof covers !== 'boolean') return json(res, 400, { error: '要求版本或覆盖标记无效' });
+          linkAcceptanceEvidence(store, revisionId, sessionId, seq, covers);
+        }
+        return json(res, 200, acceptanceDocument(store, raw));
+      }
+
       if (path === '/api/sessions' && req.method === 'GET') {
         const rows = store.listSessions({
           agent: agentParam(url.searchParams.get('agent')),
@@ -172,7 +226,8 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
         return json(res, 200, {
           ...s,
           title: safe(s.title),
-          messages: s.messages.map((m: any) => ({ ...m, text: safe(m.text) })),
+          acceptanceEvidenceSeqs: acceptanceEvidenceSeqs(s.messages),
+          messages: s.messages.map(({ failed: _failed, ...m }) => ({ ...m, text: safe(m.text) })),
           children: s.children.map((c) => ({ ...c, title: safe(c.title) })),
         });
       }
@@ -268,6 +323,7 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
       if (path.startsWith('/api/')) return json(res, 404, { error: '没有这个接口' });
       return serveStatic(path, res);
     } catch (e: any) {
+      if (e instanceof AcceptanceError) return json(res, e.status, { error: e.message });
       json(res, 500, { error: e.message ?? String(e) });
     }
   };

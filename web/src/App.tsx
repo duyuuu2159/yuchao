@@ -62,20 +62,32 @@ export function App() {
         跳到正文
       </a>
       <aside className="side">
-        <div className="brand">
-          <span className="logo" aria-hidden="true">
-            巢
+        <a className="brand" href="#/overview" aria-label="鱼巢 AgentNest · 概览">
+          <span className="logo nest-mark" aria-hidden="true">
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 28 28"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.65"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3.5 14c3.2-5.1 7-6.8 11-5.6 2 .6 3.8 1.8 5.3 3.3l4.7-2.6v9.8l-4.7-2.6c-1.5 1.5-3.3 2.7-5.3 3.3-4 1.2-7.8-.5-11-5.6Z" />
+              <path d="M7 23h14" opacity=".55" />
+              <circle cx="10" cy="13.4" r=".84" fill="currentColor" stroke="none" />
+            </svg>
           </span>
           <span className="brand-text">
-            <b>
-              鱼<span className="brand-accent">巢</span>
-            </b>
+            <b>鱼巢</b>
             <small>AgentNest</small>
           </span>
-        </div>
+        </a>
 
         <nav aria-label="页面">
-          {NAV.map((n, i) => (
+          {NAV.map((n) => (
             <a
               key={n.view}
               href={`#/${n.view}`}
@@ -84,8 +96,7 @@ export function App() {
               title={n.label}
             >
               <Icon name={n.icon} size={18} />
-              <span>{n.label}</span>
-              <em>{String(i).padStart(2, '0')}</em>
+              <span className="nav-label">{n.label}</span>
             </a>
           ))}
         </nav>

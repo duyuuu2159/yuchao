@@ -29,6 +29,7 @@ export interface SessionDetail extends SessionRow {
   sourcePath: string;
   messages: Message[];
   children: SessionRow[];
+  acceptanceEvidenceSeqs: number[];
 }
 
 export interface SearchHit {
@@ -368,6 +369,48 @@ export interface Diagnosis {
 
 export const diagnosisApi = {
   get: (id: string, raw?: boolean) => get<Diagnosis>(`/api/diagnosis/${encodeURIComponent(id)}?${qs({ raw: flag(raw) })}`),
+};
+
+// ---------------- 接力验收单（始终打码） ----------------
+
+export interface AcceptanceSource {
+  sessionId: string;
+  seq: number;
+  agent: Agent;
+  available: boolean;
+}
+
+export interface AcceptanceEvidence extends AcceptanceSource {
+  command: string | null;
+  result: 'pass' | 'fail' | 'unknown';
+  covers: boolean;
+}
+
+export interface AcceptanceRevision {
+  id: number;
+  source: AcceptanceSource & { text: string };
+  status: 'pending' | 'verified' | 'failed';
+  evidence: AcceptanceEvidence[];
+}
+
+export interface AcceptanceCard {
+  revisions: AcceptanceRevision[];
+}
+
+type AcceptanceRef = Pick<AcceptanceSource, 'sessionId' | 'seq'>;
+
+function saveAcceptance(path: 'requirement' | 'evidence', body: object) {
+  return get<AcceptanceCard>(`/api/acceptance/${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export const acceptanceApi = {
+  get: (signal?: AbortSignal) => get<AcceptanceCard>('/api/acceptance', { signal }),
+  requirement: (body: AcceptanceRef & { expectedRevisionId: number | null }) => saveAcceptance('requirement', body),
+  evidence: (body: AcceptanceRef & { revisionId: number; covers: boolean }) => saveAcceptance('evidence', body),
 };
 
 // ---------------- 言行对账 ----------------
