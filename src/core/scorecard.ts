@@ -11,8 +11,9 @@
 // 样本少时结论不可靠，界面上会显示每个数字背后有几个会话。
 
 import { agentLabel } from './agents.ts';
-import { errorOf, FILLER, SHELL_TOOLS } from './handoff.ts';
+import { errorOf, FILLER } from './handoff.ts';
 import type { Store } from './store.ts';
+import { isShellCall, PendingCalls } from './tools.ts';
 import type { AgentKind, Role } from './types.ts';
 
 export type Outcome = 'smooth' | 'rework' | 'unresolved';
@@ -142,7 +143,8 @@ export function traceSession(messages: Msg[]): { signals: SessionSignals; marks:
   const asks: string[] = [];
   const errorCounts = new Map<string, number>();
   let lastKnownFailed = false;
-  let lastTool: string | null = null;
+  /** 每次调用是不是在执行命令，等它的结果回来时用 */
+  const pending = new PendingCalls<boolean>();
   let positiveAfterLastError = false;
   /** 你最后一句有内容的话是不是在说不行 */
   let lastComplaint = false;
@@ -195,10 +197,12 @@ export function traceSession(messages: Msg[]): { signals: SessionSignals; marks:
     } else if (m.role === 'tool_call') {
       agentActed = true;
       s.toolCalls++;
-      lastTool = m.toolName;
-    } else if (m.role === 'tool_result' && m.failed != null) {
+      pending.call(isShellCall(m.toolName, m.text));
+    } else if (m.role === 'tool_result') {
+      const shell = pending.result() ?? false;
       // 只认 agent 自己记录的执行结果；不知道成败的（还在运行、等待超时、被用户中断）不参与判断
-      if (lastTool && SHELL_TOOLS.test(lastTool)) {
+      if (m.failed == null) continue;
+      if (shell) {
         lastKnownFailed = m.failed;
         if (m.failed) {
           s.at.lastFailure = m.seq;

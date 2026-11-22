@@ -75,7 +75,13 @@ test('用量：WorkBuddy 按 OpenAI 口径，输入已含缓存', async () => {
 let seq = 0;
 const u = (text: string) => ({ seq: seq++, role: 'user' as Role, toolName: null, text });
 const a = (text: string) => ({ seq: seq++, role: 'assistant' as Role, toolName: null, text });
-const call = (toolName: string) => ({ seq: seq++, role: 'tool_call' as Role, toolName, text: '{}' });
+// 执行类工具要带着真实的命令才算执行命令；查询类工具的参数里没有 command
+const call = (toolName: string, command = 'npm test') => ({
+  seq: seq++,
+  role: 'tool_call' as Role,
+  toolName,
+  text: JSON.stringify({ command }),
+});
 const result = (failed: boolean | null, text = 'output') => ({ seq: seq++, role: 'tool_result' as Role, toolName: null, text, failed });
 
 test('判断：一路顺利', () => {
@@ -142,6 +148,30 @@ test('判断：最后一次执行命令失败是没解决；查询类工具失�
     judge(sessionSignals([u('部署上线'), call('Bash'), result(true, 'warning'), u('好了，我手动弄好了')]), false).outcome,
     'smooth',
   );
+});
+
+test('判断：Codex 的 exec 脚本里执行的命令失败，也算以报错收尾', () => {
+  // 新版 Codex 把命令写在 exec 脚本里：tools.exec_command({cmd: "..."})。原来不认识 exec，Codex 的执行失败一直没算进去
+  const exec = { seq: seq++, role: 'tool_call' as Role, toolName: 'exec', text: 'text(await tools.exec_command({cmd:"npm run build"}))' };
+  assert.equal(judge(sessionSignals([u('部署上线'), exec, result(true, 'Script failed'), a('构建失败了')]), false).outcome, 'unresolved');
+  // 只调用浏览器、读文件的脚本不是执行命令
+  const browse = { seq: seq++, role: 'tool_call' as Role, toolName: 'exec', text: 'await tools.mcp__node_repl__js({code:`1`})' };
+  assert.equal(judge(sessionSignals([u('看看页面'), browse, result(true, 'timeout'), a('页面打不开')]), false).outcome, 'smooth');
+});
+
+test('判断：并行的几个调用，结果按顺序对上（不能把写文件的失败算到命令头上）', () => {
+  // 真实数据：DeepSeek 同时发出「写文件」和「执行命令」，写文件失败、命令成功；原来把失败记在了命令上，判成没解决
+  const sig = sessionSignals([
+    u('整理一下笔记'),
+    call('write', ''),
+    call('pwsh', 'python enrich.py'),
+    result(true, 'Error: cannot modify notes.md'),
+    // 和真实数据一样，这条命令的结果 agent 没有记成败
+    result(null, 'wrote 397 chars to out.txt'),
+    a('整理好了'),
+  ]);
+  assert.equal(sig.endedOnError, false);
+  assert.equal(sig.errors, 1);
 });
 
 test('判断：你最后一句在说不行、或者之后换了别的 agent 接着做，是没解决', () => {
@@ -318,7 +348,7 @@ function relayStore() {
   const ask = '服务器上的 nginx 一直返回 502，帮我看看 upstream 的配置';
   put(store, 'claude:a', 'claude', '2026-11-01T08:00:00Z', '2026-11-01T09:00:00Z', [
     ['user', ask],
-    ['tool_call', '{}', null, 'Bash'],
+    ['tool_call', JSON.stringify({ command: 'curl -s localhost/api' }), null, 'Bash'],
     ['tool_result', 'connection refused', true],
     ['assistant', '连不上'],
   ]);

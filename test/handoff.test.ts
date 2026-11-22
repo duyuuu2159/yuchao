@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { commandOf, errorOf, estimateTokens, extractFacts, filesTouched, renderHandoff } from '../src/core/handoff.ts';
+import { commandOf, errorOf, estimateTokens, extractFacts, renderHandoff } from '../src/core/handoff.ts';
 import { redact } from '../src/core/scan.ts';
+import { filesTouched } from '../src/core/tools.ts';
 
 type M = { seq: number; ts: string | null; role: any; toolName: string | null; text: string };
 let seq = 0;
@@ -27,6 +28,7 @@ const session = {
     m('tool_call', JSON.stringify({ file_path: 'G:\\demo\\src\\login.ts' }), 'Read'),
     m('tool_result', '12  // 登录失败时显示提示'),
     m('tool_call', JSON.stringify({ file_path: 'G:\\demo\\src\\login.ts', old_string: 'a', new_string: 'b' }), 'Edit'),
+    m('tool_result', 'The file has been updated.'),
     m('tool_call', JSON.stringify({ command: 'npm test' }), 'Bash'),
     m('tool_result', '> test\nError: expected 200, got 500\n    at login.test.ts:9'),
     m('user', '继续'),

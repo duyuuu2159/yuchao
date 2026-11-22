@@ -1,6 +1,7 @@
 import { agentLabel, isAgentKind } from './agents.ts';
 import { redact } from './scan.ts';
 import type { Store } from './store.ts';
+import { commandsOf, filesTouched, isShellCall, PendingCalls } from './tools.ts';
 import type { AgentKind, Role } from './types.ts';
 
 // 接力：把一个会话整理成一份交接说明，粘贴给另一个 agent 接着做。
@@ -40,41 +41,20 @@ export interface Handoff {
   tokens: number;
 }
 
-/** 写文件类的工具：各家叫法不同 */
-const EDIT_TOOLS = /^(Write|Edit|MultiEdit|NotebookEdit|write|edit|apply_patch|.*write_file)$/;
-/** 执行命令类的工具 */
-export const SHELL_TOOLS = /^(Bash|PowerShell|pwsh|exec_command|shell|.*ssh_exec)$/;
 /** 只是「继续」「好的」这种推进对话的话，不算一条要求 */
 export const FILLER = /^(继续|好|好的|嗯|ok|okay|可以|行|是|对|开始|继续做|接着做|yes|y|go)[。.!！~]*$/i;
 
-/** 工具参数可能被截断成不完整的 JSON，所以按字段用正则取，再按 JSON 字符串规则还原转义 */
-function field(text: string, names: string[]): string[] {
-  const out: string[] = [];
-  const re = new RegExp(`"(?:${names.join('|')})"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'g');
-  for (const m of text.matchAll(re)) {
-    try {
-      out.push(JSON.parse(`"${m[1]}"`));
-    } catch {
-      out.push(m[1]);
-    }
-  }
-  return out;
+/** 交接说明里显示的命令：只留前三行，太长的截断 */
+export function shortCommand(cmd: string): string {
+  const lines = cmd.trim().split('\n');
+  const firstLines = lines.slice(0, 3).join('\n');
+  return firstLines.length > 240 ? firstLines.slice(0, 240) + '…' : firstLines + (lines.length > 3 ? '\n…' : '');
 }
 
-export function filesTouched(toolName: string | null, text: string): string[] {
-  // Write/Edit 只认 file_path：写入的内容里可能恰好有补丁格式的文字，不能当成改了那些文件
-  if (toolName && EDIT_TOOLS.test(toolName) && toolName !== 'apply_patch')
-    return field(text, ['file_path', 'path', 'notebook_path']).slice(0, 1);
-  // apply_patch，以及 Codex 的 exec 工具里内嵌的 apply_patch
-  return [...text.matchAll(/\*\*\* (?:Add|Update|Delete) File: ([^\n\\"]+)/g)].map((m) => m[1].trim());
-}
-
+/** 这次调用执行的第一条命令（截断后用于显示）；不是执行命令的调用返回 null */
 export function commandOf(toolName: string | null, text: string): string | null {
-  if (!toolName || !SHELL_TOOLS.test(toolName)) return null;
-  const cmd = field(text, ['command', 'cmd'])[0];
-  if (!cmd) return null;
-  const firstLines = cmd.trim().split('\n').slice(0, 3).join('\n');
-  return firstLines.length > 240 ? firstLines.slice(0, 240) + '…' : firstLines + (cmd.trim().split('\n').length > 3 ? '\n…' : '');
+  const cmd = commandsOf(toolName, text)[0];
+  return cmd ? shortCommand(cmd) : null;
 }
 
 const ERROR_LINE = /(?:\berror\b|\bfailed\b|traceback|exception|exit code [1-9]|not found|denied|ENOENT|EADDRINUSE|报错|失败|错误)/i;
@@ -113,23 +93,24 @@ export function extractFacts(session: {
 
   // 文件按最后一次改动排序：交接时最近在改的才是现场
   const files = new Map<string, { edits: number; last: number }>();
-  let lastTool: string | null = null;
+  /** 每次调用是不是在执行命令，等它的结果回来时用 */
+  const pending = new PendingCalls<boolean>();
   const commands: string[] = [];
   const errors: string[] = [];
   let toolCalls = 0;
   for (const m of session.messages) {
     if (m.role === 'tool_call') {
       toolCalls++;
-      lastTool = m.toolName;
+      pending.call(isShellCall(m.toolName, m.text));
       for (const f of filesTouched(m.toolName, m.text)) {
         const key = shortPath(f, session.cwd);
         files.set(key, { edits: (files.get(key)?.edits ?? 0) + 1, last: m.seq });
       }
-      const c = commandOf(m.toolName, m.text);
-      if (c) commands.push(c);
+      for (const c of commandsOf(m.toolName, m.text)) commands.push(shortCommand(c));
     } else if (m.role === 'tool_result') {
       // 只看命令的输出，或者工具自己报的错；读文件的结果里出现「失败」二字不算报错
-      const e = (lastTool && SHELL_TOOLS.test(lastTool)) || /^\s*(error|\[stderr\])/i.test(m.text) ? errorOf(m.text) : null;
+      const shell = pending.result() ?? false;
+      const e = shell || /^\s*(error|\[stderr\])/i.test(m.text) ? errorOf(m.text) : null;
       if (e) errors.push(e);
     }
   }
