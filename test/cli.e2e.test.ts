@@ -183,3 +183,70 @@ test('成绩单：表格、JSON 和参数校验', () => {
   assert.ok(json.sessions.every((s: { outcome: string }) => ['smooth', 'rework', 'unresolved'].includes(s.outcome)));
   assert.notEqual(cli(home, 'score', '--days', 'abc').code, 0);
 });
+
+test('守门：像 Claude Code 那样从标准输入传入 hook 参数，对不上就输出 block；安装、状态、卸载', () => {
+  const home = makeHome();
+  const env = { ...process.env, HOME: home, USERPROFILE: home, YUCHAO_DB: join(home, '.yuchao', 'index.db'), NO_COLOR: '1' };
+  const transcript = join(home, 'g1.jsonl');
+  const base = { sessionId: 'g1', cwd: 'G:/demo', timestamp: '2026-11-20T08:00:00.000Z' };
+  const events = [
+    { type: 'user', message: { role: 'user', content: '修一下登录' } },
+    {
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npm test' } }] },
+    },
+    { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ℹ pass 3\nℹ fail 0' }] } },
+    {
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 't2', name: 'Edit', input: { file_path: 'G:/demo/src/login.ts' } }] },
+    },
+    { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't2', content: 'ok' }] } },
+    { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: '3 个测试全部通过。' }] } },
+  ];
+  writeFileSync(transcript, events.map((e, i) => JSON.stringify({ ...base, uuid: `e${i}`, ...e })).join('\n'));
+
+  const hook = spawnSync(process.execPath, [MAIN, 'guard'], {
+    encoding: 'utf8',
+    env,
+    input: JSON.stringify({ session_id: 'g1', transcript_path: transcript, hook_event_name: 'Stop', stop_hook_active: false }),
+  });
+  assert.equal(hook.status, 0);
+  const d = JSON.parse(hook.stdout);
+  assert.equal(d.decision, 'block');
+  assert.match(d.reason, /login\.ts/);
+  assert.equal(
+    readFileSync(join(home, '.yuchao', 'guard.jsonl'), 'utf8')
+      .trim()
+      .split('\n').length,
+    1,
+    '拦下的记一行',
+  );
+
+  // 坏掉的输入：放行，不报错
+  const broken = spawnSync(process.execPath, [MAIN, 'guard'], { encoding: 'utf8', env, input: 'not json' });
+  assert.equal(broken.status, 0);
+  assert.equal(broken.stdout, '');
+
+  const settings = join(home, '.claude', 'settings.json');
+  writeFileSync(settings, JSON.stringify({ model: 'opus' }));
+  assert.match(cli(home, 'guard', 'install').out, /确认后加上 --yes/);
+  assert.equal(JSON.parse(readFileSync(settings, 'utf8')).hooks, undefined, '没有 --yes 不改动');
+  assert.match(cli(home, 'guard', 'install', '--yes').out, /已装上守门/);
+  const s = JSON.parse(readFileSync(settings, 'utf8'));
+  assert.equal(s.model, 'opus');
+  assert.match(s.hooks.Stop[0].hooks[0].command, /main\.ts" guard$/);
+  assert.match(cli(home, 'config', 'log', '.claude/settings').out, /自动快照/, '改动前先记了一版');
+  assert.match(cli(home, 'guard', 'status').out, /已装上[\s\S]*拦下过 1 次/);
+  assert.match(cli(home, 'guard', 'uninstall', '--yes').out, /已卸下守门/);
+  assert.deepEqual(JSON.parse(readFileSync(settings, 'utf8')), { model: 'opus' });
+});
+
+test('yuchao claims：表格和 JSON 输出', () => {
+  const home = makeHome();
+  cli(home, 'index');
+  const r = cli(home, 'claims');
+  assert.equal(r.code, 0);
+  const json = JSON.parse(cli(home, 'claims', '--json').out);
+  assert.equal(typeof json.claims, 'number');
+  assert.ok(Array.isArray(json.flagged));
+});

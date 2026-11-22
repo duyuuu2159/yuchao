@@ -11,6 +11,7 @@
 // 样本少时结论不可靠，界面上会显示每个数字背后有几个会话。
 
 import { agentLabel } from './agents.ts';
+import { auditClaims, type Claim } from './claims.ts';
 import { errorOf, FILLER } from './handoff.ts';
 import type { Store } from './store.ts';
 import { isShellCall, PendingCalls } from './tools.ts';
@@ -68,7 +69,8 @@ export interface SessionSignals {
 }
 
 /** 复盘时间线上的一个标记 */
-export type MarkKind = 'ask' | 'positive' | 'negative' | 'reask' | 'retry' | 'error';
+/** overclaim：agent 说测试通过，但它自己的记录对不上（见 claims.ts） */
+export type MarkKind = 'ask' | 'positive' | 'negative' | 'reask' | 'retry' | 'error' | 'overclaim';
 export interface Mark {
   seq: number;
   kind: MarkKind;
@@ -506,6 +508,8 @@ export interface Diagnosis {
   handedOffTo: LinkedSession | null;
   /** 这个会话是接手别的 agent 做到一半的事 */
   handedOffFrom: LinkedSession | null;
+  /** agent 说「测试通过」的每一处，以及核对的结论 */
+  claims: Claim[];
 }
 
 /** 单个会话的复盘：结论、每条理由出现在哪条消息、整个会话里出过哪些状况。找不到会话时返回 null */
@@ -515,14 +519,19 @@ export function diagnoseSession(store: Store, id: string): Diagnosis | null {
     | undefined;
   if (!row) return null;
   const messages = loadMessages(store, id);
-  const { signals, marks } = traceSession(messages);
+  const { signals, marks: trace } = traceSession(messages);
+  const claims = auditClaims(messages);
+  const marks = [
+    ...trace,
+    ...claims.filter((c) => c.verdict === 'contradicted' || c.verdict === 'stale').map((c) => ({ seq: c.seq, kind: 'overclaim' as const })),
+  ].sort((a, b) => a.seq - b.seq);
   const span: [number, number] = [messages[0]?.seq ?? 0, messages.at(-1)?.seq ?? 0];
   const link = (sid: string | undefined): LinkedSession | null => {
     if (!sid) return null;
     return (store.db.prepare('SELECT id, agent, title FROM sessions WHERE id = ?').get(sid) as LinkedSession | undefined) ?? null;
   };
 
-  const base = { id, signals, marks, span, reasons: [] as Reason[], handedOffTo: null, handedOffFrom: null };
+  const base = { id, signals, marks, span, claims, reasons: [] as Reason[], handedOffTo: null, handedOffFrom: null };
   if (row.parent_id) return { ...base, outcome: null, note: '这是主会话派出去干活的子 agent，成败跟着主会话算' };
   if (signals.turns === 0) return { ...base, outcome: null, note: '这个会话里你没有说话，不参与成绩单' };
 

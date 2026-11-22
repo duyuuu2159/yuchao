@@ -53,6 +53,9 @@ const HELP = `鱼巢 AgentNest —— 把多个 AI agent 的本地会话管在�
   yuchao config restore <版本号> --yes  回滚到某个版本，会先保存当前内容；损坏的版本需要 --force
   yuchao config track|untrack <路径>    增加或取消跟踪的配置文件
   yuchao score [--days 30] [--all]  成绩单：每个 agent、每个模型把事办成了多少，花了多少 token（--json 输出 JSON）
+  yuchao claims [--days 30]        言行对账：agent 说「测试通过」时，它自己的执行记录对不对得上（--json 输出 JSON）
+  yuchao guard install --yes       装上守门：Claude 说测试通过却对不上时，把它拦回去重新确认（Claude Code 的 Stop hook）
+  yuchao guard status|uninstall    查看守门状态、拦下过几次；卸下守门
   yuchao handoff <会话id> [--to codex]  接力：把会话整理成交接说明，粘贴给另一个 agent 接着做（本地生成，已打码）
   yuchao server [名字]             服务器面板：服务、版本、磁盘、最近的异常（只读，--json 输出 JSON）
   yuchao server add <名字> <用户名@主机[:端口]> [--url https://域名]  添加服务器
@@ -213,6 +216,13 @@ async function run(store: Store) {
         runScore(store, { days, agent, json: values.json, all: values.all });
         break;
       }
+      case 'claims': {
+        const { runClaims } = await import('./claims.ts');
+        const days = values.days ? Number(values.days) : undefined;
+        if (days !== undefined && !(days > 0)) fail('--days 要是正数，例如 --days 30');
+        runClaims(store, { days, agent, json: values.json });
+        break;
+      }
       case 'handoff': {
         const { buildHandoff } = await import('../core/handoff.ts');
         if (values.to && !isAgentKind(values.to)) fail(`未知的 agent：${values.to}（可选 ${AGENT_KINDS.join('、')}）`);
@@ -256,4 +266,7 @@ async function run(store: Store) {
   }
 }
 
-if (cmd) run(new Store()).catch((e) => fail(e?.stack ?? String(e)));
+// 守门由 Claude Code 在每次停下前调用，要快：不打开数据库（安装时才需要）
+if (cmd === 'guard') {
+  import('./guard.ts').then(({ runGuard }) => runGuard(rest, values)).catch((e) => fail(e?.stack ?? String(e)));
+} else if (cmd) run(new Store()).catch((e) => fail(e?.stack ?? String(e)));
