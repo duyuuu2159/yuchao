@@ -2968,3 +2968,85 @@ button.version:hover {
   border-left: 2px solid var(--err);
   background: var(--del-bg);
 }
+
+/* ───────── 言行对账 ───────── */
+
+.claims {
+  margin-bottom: var(--s6);
+}
+.cv-verified {
+  background: var(--ok);
+}
+.cv-stale {
+  background: var(--warn);
+}
+.cv-contradicted {
+  background: var(--err);
+}
+/* 无从核对：中性的灰，不和三种状态色抢 */
+.cv-unverifiable {
+  background: var(--line-strong);
+}
+.share-lead b.danger {
+  color: var(--err);
+}
+.verdict {
+  flex: none;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: var(--f-xs);
+  font-weight: 600;
+  line-height: 20px;
+}
+.verdict.v-stale {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+.verdict.v-contradicted {
+  background: var(--del-bg);
+  color: var(--err);
+}
+.claims-flagged {
+  margin-top: var(--s3);
+}
+.guard-card {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  margin-top: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  color: var(--muted);
+}
+.guard-card.on {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  color: var(--ok);
+}
+.guard-card div {
+  display: grid;
+  gap: 2px;
+}
+.guard-card b {
+  color: var(--text);
+}
+.guard-card code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--sunken);
+  color: var(--text);
+}
+
+/* 复盘时间线：说测试通过但对不上——红色空心圈，和执行失败（实心方块）、重发（灰色空心圈）区分 */
+.tm-overclaim i {
+  width: 11px;
+  height: 11px;
+  border: 2.5px solid var(--err);
+  border-radius: 50%;
+  background: var(--glass-strong);
+}
+.retro-reason.overclaim {
+  border-color: color-mix(in srgb, var(--err) 40%, transparent);
+  color: var(--err);
+}

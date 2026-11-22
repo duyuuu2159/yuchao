@@ -120,6 +120,44 @@ test('复盘接口：只返回位置不返回原文，接力另一头的标题�
   }
 });
 
+test('言行对账接口：标出对不上的说法，agent 的原话和命令默认打码；附带守门状态', async () => {
+  const store = new Store(':memory:');
+  const PW = 'Qz7Lm4Rk9W';
+  store.db
+    .prepare(
+      `INSERT INTO sessions(id, agent, native_id, parent_id, title, cwd, started_at, updated_at, archived, source_path, message_count)
+       VALUES ('claude:c', 'claude', 'c', NULL, '换数据库密码', NULL, '2026-11-01T08:00:00Z', '2026-11-01T09:00:00Z', 0, '/fake', 4)`,
+    )
+    .run();
+  const msg = store.db.prepare('INSERT INTO messages(session_id, seq, ts, role, tool_name, text, failed) VALUES (?, ?, NULL, ?, ?, ?, ?)');
+  msg.run('claude:c', 0, 'user', null, '把数据库密码换成环境变量', null);
+  msg.run('claude:c', 1, 'tool_call', 'Bash', JSON.stringify({ command: `DB_PASS=${PW} npm test` }), null);
+  msg.run('claude:c', 2, 'tool_result', null, 'ℹ fail 1', 1);
+  msg.run('claude:c', 3, 'assistant', null, `改好了，密码 ${PW} 已经移到环境变量，测试全部通过`, null);
+
+  const srv = createServer(createApp(store, { claude: join(EMPTY, '.claude') }));
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+  try {
+    const text = await (await fetch(base + '/api/claims')).text();
+    const r = JSON.parse(text);
+    assert.equal(r.claims, 1);
+    assert.equal(r.flagged[0].verdict, 'contradicted');
+    assert.equal(r.flagged[0].seq, 3);
+    assert.equal(typeof r.guard.installed, 'boolean');
+    assert.ok(!text.includes(PW), '原话和命令里的密码打码');
+    assert.ok((await (await fetch(base + '/api/claims?raw=1')).text()).includes(PW));
+    const d = await (await fetch(base + '/api/diagnosis/claude%3Ac')).text();
+    assert.ok(
+      JSON.parse(d).marks.some((m: { kind: string }) => m.kind === 'overclaim'),
+      '复盘时间线上标出来',
+    );
+    assert.ok(!d.includes(PW));
+  } finally {
+    srv.close();
+  }
+});
+
 test('画像接口只读：返回统计、记忆和最新画像，不提供生成接口', async () => {
   const r = await call('GET', '/api/profile');
   assert.equal(r.status, 200);

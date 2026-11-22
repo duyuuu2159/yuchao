@@ -12,6 +12,7 @@ const KINDS: { kind: MarkKind; label: string; lane: 'you' | 'agent' }[] = [
   { kind: 'retry', label: '重发 / Try again', lane: 'you' },
   { kind: 'positive', label: '说好了', lane: 'you' },
   { kind: 'error', label: '执行失败', lane: 'agent' },
+  { kind: 'overclaim', label: '说测试通过但对不上', lane: 'agent' },
 ];
 const LABEL = Object.fromEntries(KINDS.map((k) => [k.kind, k.label])) as Record<MarkKind, string>;
 
@@ -97,7 +98,14 @@ export function SessionRetro({
             </button>
           ),
         )}
-        {d.outcome === 'smooth' && <span className="meta">没有说过不行，最后也没有卡住</span>}
+        {d.claims
+          .filter((c) => c.verdict === 'contradicted' || c.verdict === 'stale')
+          .map((c) => (
+            <button key={'c' + c.seq} type="button" className="retro-reason overclaim" onClick={() => onJump(c.seq)}>
+              说「测试通过」但{c.verdict === 'stale' ? '改完没再测' : '最后一次测试是失败的'} <Icon name="arrow" size={12} />
+            </button>
+          ))}
+        {d.outcome === 'smooth' && <span className="meta">你没说过不行，最后也没卡住</span>}
       </div>
 
       {(d.handedOffFrom || d.handedOffTo) && (

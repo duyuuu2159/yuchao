@@ -345,7 +345,7 @@ export const scoreApi = {
 
 // ---------------- 复盘 ----------------
 
-export type MarkKind = 'ask' | 'positive' | 'negative' | 'reask' | 'retry' | 'error';
+export type MarkKind = 'ask' | 'positive' | 'negative' | 'reask' | 'retry' | 'error' | 'overclaim';
 
 export interface LinkedSession {
   id: string;
@@ -363,10 +363,47 @@ export interface Diagnosis {
   span: [number, number];
   handedOffTo: LinkedSession | null;
   handedOffFrom: LinkedSession | null;
+  claims: Claim[];
 }
 
 export const diagnosisApi = {
   get: (id: string, raw?: boolean) => get<Diagnosis>(`/api/diagnosis/${encodeURIComponent(id)}?${qs({ raw: flag(raw) })}`),
+};
+
+// ---------------- 言行对账 ----------------
+
+export type ClaimVerdict = 'verified' | 'contradicted' | 'stale' | 'unverifiable';
+
+export interface Claim {
+  seq: number;
+  sentence: string;
+  verdict: ClaimVerdict;
+  test: { seq: number; command: string; failed: boolean | null } | null;
+  editedAfter: { seq: number; files: string[] } | null;
+}
+
+export interface ClaimRow {
+  key: string;
+  label: string;
+  agents: Agent[];
+  claims: number;
+  verified: number;
+  contradicted: number;
+  stale: number;
+  unverifiable: number;
+}
+
+export interface ClaimsReport {
+  since: string | null;
+  claims: number;
+  byAgent: ClaimRow[];
+  byModel: ClaimRow[];
+  flagged: (Claim & { sessionId: string; agent: Agent; title: string | null; model: string | null })[];
+  guard: { installed: boolean; blocks: number; lastBlock: string | null };
+}
+
+export const claimsApi = {
+  get: (days?: number, raw?: boolean) => get<ClaimsReport>(`/api/claims?${qs({ days: days ? String(days) : undefined, raw: flag(raw) })}`),
 };
 
 // ---------------- 用量 ----------------

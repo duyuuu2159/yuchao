@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { type Outcome, type Scorecard, type ScoreRow, type SessionScore, scoreApi } from './api.ts';
+import { ClaimsSection } from './ClaimsSection.tsx';
 import { when } from './format.ts';
 import { bigNumber } from './UsageSection.tsx';
 import { AgentBadge, Empty, ErrorPage, Icon, LoadingPage, PageHeader } from './ui.tsx';
@@ -294,6 +295,8 @@ export function ScoreView({ onOpen }: { onOpen: (sessionId: string, seq: number 
             接到的活难度不一样：交给它的都是小事，「每件顺利的事」自然便宜。横向比较时看同一类任务，样本少于 {FEW} 个的行仅供参考。
             {sc.byAgent.some((r) => r.key === 'dsh') && ' DeepSeek Harness 的记录里没有缓存数据，它的输入可能不含缓存部分。'}
           </p>
+
+          <ClaimsSection days={days} onOpen={onOpen} />
 
           <div className="score-head">
             <h2 className="section-title">逐个会话</h2>

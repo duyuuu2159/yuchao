@@ -4,8 +4,10 @@ import { extname, join } from 'node:path';
 import { getAsset, isSea } from 'node:sea';
 import { AGENTS, isAgentKind } from '../core/agents.ts';
 import { audit, ignoreFinding, unignoreFinding } from '../core/audit.ts';
+import { type Claim, claimsReport } from '../core/claims.ts';
 import { ConfigManager, hasNul, redactConfig } from '../core/configs.ts';
 import { diffText } from '../core/diff.ts';
+import { guardInstalled, readGuardLog } from '../core/guard.ts';
 import { buildHandoff, latestWorkSession } from '../core/handoff.ts';
 import { readMemories } from '../core/memories.ts';
 import { diffProfiles, latestProfile, profileHistory } from '../core/profile/build.ts';
@@ -70,6 +72,11 @@ export const SECURITY_HEADERS: Record<string, string> = {
   'cross-origin-resource-policy': 'same-origin',
 };
 
+/** 对账结论里有 agent 说的原话和命令，和会话内容一样默认打码 */
+function safeClaim<T extends Claim>(c: T, safe: (s: string | null) => string | null): T {
+  return { ...c, sentence: safe(c.sentence) ?? '', test: c.test && { ...c.test, command: safe(c.test.command) ?? '' } };
+}
+
 export interface AppOptions {
   /** 测试时替换掉真实的服务器列表和 ssh 连接 */
   servers?: () => ServerConfig[];
@@ -131,7 +138,24 @@ export function createApp(store: Store, dirs: SourceDirs = defaultSourceDirs(), 
         const d = diagnoseSession(store, decodeURIComponent(path.slice('/api/diagnosis/'.length)));
         if (!d) return json(res, 404, { error: '找不到这个会话' });
         const link = (l: LinkedSession | null) => l && { ...l, title: safe(l.title) };
-        return json(res, 200, { ...d, handedOffTo: link(d.handedOffTo), handedOffFrom: link(d.handedOffFrom) });
+        return json(res, 200, {
+          ...d,
+          handedOffTo: link(d.handedOffTo),
+          handedOffFrom: link(d.handedOffFrom),
+          claims: d.claims.map((c) => safeClaim(c, safe)),
+        });
+      }
+      // 言行对账：agent 说「测试通过」时，它自己的记录对不对得上；附上守门的状态（只读，安装在命令行里做）
+      if (path === '/api/claims' && req.method === 'GET') {
+        const days = Number(url.searchParams.get('days'));
+        const r = claimsReport(store, { days: days > 0 ? days : undefined, agent: agentParam(url.searchParams.get('agent')) });
+        const settings = dirs.claude ? join(dirs.claude, 'settings.json') : null;
+        const log = readGuardLog();
+        return json(res, 200, {
+          ...r,
+          flagged: r.flagged.map((c) => ({ ...safeClaim(c, safe), title: safe(c.title) })),
+          guard: { installed: settings ? guardInstalled(settings) : false, blocks: log.length, lastBlock: log.at(-1)?.at ?? null },
+        });
       }
       if (path.startsWith('/api/handoff/') && req.method === 'GET') {
         const ref = decodeURIComponent(path.slice('/api/handoff/'.length));
