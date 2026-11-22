@@ -139,6 +139,15 @@ export const RULES: Rule[] = [
     accept: looksLikeSecret,
   },
   {
+    // DB_PASSWORD=…、MYSQL_ROOT_PASSWORD=…、DB_PASS=…：.env、docker compose、命令前缀里最常见的写法。
+    // 上一条规则要求 password 前面不能紧挨字母和下划线（避开 $PWD 这类），所以要单独认
+    id: 'env_password',
+    name: '环境变量里的密码',
+    severity: 'medium',
+    pattern: /\b[A-Z][A-Z0-9_]*_(?:PASSWORD|PASSWD|PASS|PWD)\s*=\s*["']?([^\s"'`;&|]{6,64})/g,
+    accept: looksLikeSecret,
+  },
+  {
     id: 'generic_secret',
     name: '疑似密钥或令牌',
     severity: 'medium',

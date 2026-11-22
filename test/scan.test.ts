@@ -40,6 +40,17 @@ test('各类 API key 和令牌', () => {
   assert.deepEqual(ids(`"${BEGIN('RSA')}\\nMIIEpAIBAAKCAQEA7bq9xZk2Lw4mNp8QrTs6UvWy3Xa5Bc7De9Fg1Hj"`), ['private_key']);
 });
 
+test('环境变量写法的密码：.env、docker compose、命令前缀', () => {
+  // 原来的密码规则要求 password 前面不能紧挨字母和下划线，DB_PASSWORD=… 这种最常见的写法反而漏掉了
+  assert.deepEqual(ids(`DB_PASSWORD=${PW}`), ['env_password']);
+  assert.deepEqual(ids(`MYSQL_ROOT_PASSWORD: ${PW}`.replace(': ', '=')), ['env_password']);
+  assert.deepEqual(ids(`DB_PASS=${PW} npm test`), ['env_password']);
+  assert.ok(!redact(`DB_PASS=${PW} npm test`).includes(PW));
+  for (const text of ['DB_PASSWORD=$DB_PASSWORD', 'DB_PASS=${DB_PASS}', 'APP_PASSWORD=changeme', 'OLD_PWD=/home/user/project']) {
+    assert.deepEqual(scanText(text), [], text);
+  }
+});
+
 test('命令和链接里的凭据', () => {
   assert.deepEqual(ids(`sshpass -p '${PW}' ssh root@203.0.113.7`), ['sshpass']);
   assert.deepEqual(ids(`mysql://admin:${PW}@db.example.com:3306/app`), ['url_credential']);
